@@ -21,6 +21,8 @@ type Request struct {
 	returnStatusCode int
 	returnHeaders    *http.Header
 	returnBody       []byte
+
+	repeatability int
 }
 
 func newRequest(method string, URL *url.URL) *Request {
@@ -102,4 +104,17 @@ func (r *Request) WriteResponse(w http.ResponseWriter) error {
 	}
 
 	return nil
+}
+
+func (r *Request) Once() *Request {
+	return r.Times(1)
+}
+
+func (r *Request) Twice() *Request {
+	return r.Times(2)
+}
+
+func (r *Request) Times(i int) *Request {
+	r.repeatability = i
+	return r
 }

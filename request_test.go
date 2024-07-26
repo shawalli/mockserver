@@ -402,3 +402,36 @@ func TestRequest_WriteResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestRequest_Times(t *testing.T) {
+	// Setup
+	r := Request{}
+
+	// Test
+	r.Times(4)
+
+	// Assertions
+	assert.Equal(t, 4, r.repeatability)
+}
+
+func TestRequest_Once(t *testing.T) {
+	// Setup
+	r := Request{}
+
+	// Test
+	r.Once()
+
+	// Assertions
+	assert.Equal(t, 1, r.repeatability)
+}
+
+func TestRequest_Twice(t *testing.T) {
+	// Setup
+	r := Request{}
+
+	// Test
+	r.Twice()
+
+	// Assertions
+	assert.Equal(t, 2, r.repeatability)
+}
