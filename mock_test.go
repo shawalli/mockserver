@@ -30,7 +30,7 @@ func TestMock_DoBadURL(t *testing.T) {
 	m := new(Mock)
 
 	// Test
-	m.On(http.MethodGet, "\r")
+	m.On(http.MethodGet, "\r", nil)
 
 	// Assertions
 	wantPanic := "failed to parse url"
@@ -42,7 +42,7 @@ func TestMock_Do(t *testing.T) {
 	m := new(Mock)
 
 	// Test
-	got := m.On(http.MethodGet, "https://test.com/foo")
+	got := m.On(http.MethodGet, "https://test.com/foo", nil)
 
 	// Assertions
 	assert.Len(t, m.ExpectedRequests, 1)
@@ -98,10 +98,10 @@ func TestMock_findExpectedRequest_Fail(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			m := new(Mock)
-			m.On(http.MethodPatch, "https://test.com/bars/1234").Body([]byte(`{"quz": "east"}`))
-			m.On(http.MethodGet, "https://test.com/bars/1234").QueryParam("limit", "1")
-			m.On(http.MethodGet, "https://test.com/bars/1234").QueryParam("limit", "100").QueryParam("page", "2")
-			m.On(http.MethodPut, "https://test.com/bars/1234")
+			m.On(http.MethodPatch, "https://test.com/bars/1234", []byte(`{"quz": "east"}`))
+			m.On(http.MethodGet, "https://test.com/bars/1234", nil).QueryParam("limit", "1")
+			m.On(http.MethodGet, "https://test.com/bars/1234", nil).QueryParam("limit", "100").QueryParam("page", "2")
+			m.On(http.MethodPut, "https://test.com/bars/1234", nil)
 
 			// Test
 			gotIndex, gotExpectedRequest := m.findExpectedRequest(tt.request)
@@ -116,7 +116,7 @@ func TestMock_findExpectedRequest_Fail(t *testing.T) {
 func TestMock_findExpectedRequest_TooManyRepeats(t *testing.T) {
 	// Setup
 	m := new(Mock)
-	m.On(http.MethodDelete, "https://test.com/bars/1234").repeatability = -1
+	m.On(http.MethodDelete, "https://test.com/bars/1234", nil).Times(-1)
 
 	test := mustNewRequest(http.NewRequest(http.MethodDelete, "https://test.com/bars/1234", http.NoBody))
 
@@ -159,10 +159,10 @@ func TestMock_findExpectedRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			m := new(Mock)
-			m.On(http.MethodPatch, "https://test.com/bars/1234").Body([]byte(`{"quz": "east"}`))
-			m.On(AnyMethod, "https://test.com/foo")
-			m.On(http.MethodGet, "https://test.com/bars/1234").QueryParam("limit", "1")
-			m.On(http.MethodPut, "https://test.com/bars/1234")
+			m.On(http.MethodPatch, "https://test.com/bars/1234", []byte(`{"quz": "east"}`))
+			m.On(AnyMethod, "https://test.com/foo", nil)
+			m.On(http.MethodGet, "https://test.com/bars/1234", nil).QueryParam("limit", "1")
+			m.On(http.MethodPut, "https://test.com/bars/1234", nil)
 
 			// Test
 			gotIndex, gotExpectedRequest := m.findExpectedRequest(tt.request)
@@ -185,9 +185,7 @@ func TestMock_findClosestRequest(t *testing.T) {
 		{
 			name: "no-match",
 			mock: func() *Mock {
-				m := new(Mock)
-				// m.On(http.MethodPut, "/foo")
-				return m
+				return new(Mock)
 			},
 			test:         mustNewRequest(http.NewRequest(http.MethodGet, "/foo/bar?limit=3", http.NoBody)),
 			wantRequest:  nil,
@@ -197,7 +195,7 @@ func TestMock_findClosestRequest(t *testing.T) {
 			name: "default-match",
 			mock: func() *Mock {
 				m := new(Mock)
-				m.On(http.MethodPut, "/foo")
+				m.On(http.MethodPut, "/foo", nil)
 				return m
 			},
 			test: mustNewRequest(http.NewRequest(http.MethodGet, "/foo/bar?limit=3", http.NoBody)),
@@ -211,8 +209,8 @@ func TestMock_findClosestRequest(t *testing.T) {
 			name: "favor-first-match",
 			mock: func() *Mock {
 				m := new(Mock)
-				m.On(http.MethodPut, "/foo")
-				m.On(http.MethodGet, "/bar")
+				m.On(http.MethodPut, "/foo", nil)
+				m.On(http.MethodGet, "/bar", nil)
 				return m
 			},
 			test: mustNewRequest(http.NewRequest(http.MethodGet, "/foo?limit=3", http.NoBody)),
@@ -227,8 +225,8 @@ func TestMock_findClosestRequest(t *testing.T) {
 			mock: func() *Mock {
 				m := new(Mock)
 				// mark this endpoint as already matched
-				m.On(http.MethodPut, "/foo").repeatability = -1
-				m.On(http.MethodGet, "/bar").Once()
+				m.On(http.MethodPut, "/foo", nil).Times(-1)
+				m.On(http.MethodGet, "/bar", nil).Once()
 				return m
 			},
 			test: mustNewRequest(http.NewRequest(http.MethodPut, "/bar", http.NoBody)),
@@ -293,7 +291,7 @@ func TestMock_Requested_FailToReadRequestBody(t *testing.T) {
 
 	fakeT := &MockTestingT{}
 	m := new(Mock).Test(fakeT)
-	m.On(http.MethodGet, "https://test.com/foo").ReturnStatusOK()
+	m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK()
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
 
@@ -318,7 +316,7 @@ func TestMock_Requested_FailToFindAnyMatch(t *testing.T) {
 
 	fakeT := &MockTestingT{}
 	m := new(Mock).Test(fakeT)
-	m.On(http.MethodGet, "https://test.com/foo").ReturnStatusOK()
+	m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK()
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
@@ -343,7 +341,7 @@ func TestMock_Requested_FailToFindRepeatableMatch(t *testing.T) {
 
 	fakeT := &MockTestingT{}
 	m := new(Mock).Test(fakeT)
-	m.On(http.MethodPut, "https://test.com/foo").ReturnStatusOK().Once()
+	m.On(http.MethodPut, "https://test.com/foo", nil).ReturnStatusOK().Once()
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
@@ -385,7 +383,7 @@ func TestMock_Requested_FailToFindClosestRequest(t *testing.T) {
 func TestMock_Requested(t *testing.T) {
 	// Setup
 	m := new(Mock).Test(t)
-	want := m.On(http.MethodGet, "https://test.com/foo").ReturnStatusOK()
+	want := m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK()
 
 	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
@@ -400,7 +398,7 @@ func TestMock_Requested(t *testing.T) {
 func TestMock_RequestedOnce(t *testing.T) {
 	// Setup
 	m := new(Mock).Test(t)
-	want := m.On(http.MethodGet, "https://test.com/foo").ReturnStatusOK().Once()
+	want := m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK().Once()
 
 	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
@@ -416,7 +414,7 @@ func TestMock_RequestedOnce(t *testing.T) {
 func TestMock_RequestedTimes(t *testing.T) {
 	// Setup
 	m := new(Mock).Test(t)
-	want := m.On(http.MethodGet, "https://test.com/foo").ReturnStatusOK().Times(4)
+	want := m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK().Times(4)
 
 	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 

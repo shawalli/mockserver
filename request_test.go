@@ -24,6 +24,7 @@ func TestRequest_Modifiers(t *testing.T) {
 		name        string
 		method      string
 		url         string
+		body        []byte
 		constraints []constraintFunc
 		want        *Request
 	}{
@@ -70,9 +71,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "body",
 			method: http.MethodGet,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
-				func(r *Request) *Request { return r.Body([]byte("Hello World!")) },
-			},
+			body:   []byte(`Hello World!`),
 			want: &Request{
 				method: "GET",
 				url: &url.URL{
@@ -80,25 +79,7 @@ func TestRequest_Modifiers(t *testing.T) {
 					Host:   "test.com",
 					Path:   "/foo",
 				},
-				body: []byte("Hello World!"),
-			},
-		},
-		{
-			name:   "body-repeat-call",
-			method: http.MethodGet,
-			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
-				func(r *Request) *Request { return r.Body([]byte("Hello World!")) },
-				func(r *Request) *Request { return r.Body([]byte("Hi there!")) },
-			},
-			want: &Request{
-				method: "GET",
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				body: []byte("Hi there!"),
+				body: []byte(`Hello World!`),
 			},
 		},
 		{
@@ -270,7 +251,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			method: AnyMethod,
 			url:    "https://test.com/foo",
 			constraints: []constraintFunc{
-				func(r *Request) *Request { return r.ReturnBody([]byte("Hello World!")) },
+				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
 			},
 			want: &Request{
 				method: AnyMethod,
@@ -279,7 +260,7 @@ func TestRequest_Modifiers(t *testing.T) {
 					Host:   "test.com",
 					Path:   "/foo",
 				},
-				returnBody: []byte("Hello World!"),
+				returnBody: []byte(`Hello World!`),
 			},
 		},
 	}
@@ -294,7 +275,7 @@ func TestRequest_Modifiers(t *testing.T) {
 				t.Fatalf("unexpected failure to parse test url: %v", err)
 			}
 
-			got := newRequest(m, tt.method, url)
+			got := newRequest(m, tt.method, url, tt.body)
 
 			// Test
 			for _, constraint := range tt.constraints {
@@ -344,7 +325,7 @@ func TestRequest_WriteResponse(t *testing.T) {
 		{
 			name:        "no-headers-no-body",
 			wantHeaders: http.Header{},
-			wantBody:    []byte(""),
+			wantBody:    []byte(``),
 		},
 		{
 			name: "headers-no-body",
@@ -356,28 +337,28 @@ func TestRequest_WriteResponse(t *testing.T) {
 				"Content-Length": []string{"5"},
 				"Content-Type":   []string{"text/plain; charset=utf-8"},
 			},
-			wantBody: []byte(""),
+			wantBody: []byte(``),
 		},
 		{
 			name: "no-headers-body",
 			constraints: []constraintFunc{
-				func(r *Request) *Request { return r.ReturnBody([]byte("Hello World!")) },
+				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
 			},
 			wantHeaders: http.Header{},
-			wantBody:    []byte("Hello World!"),
+			wantBody:    []byte(`Hello World!`),
 		},
 		{
 			name: "headers-and-body",
 			constraints: []constraintFunc{
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Type", "text/plain; charset=utf-8") },
-				func(r *Request) *Request { return r.ReturnBody([]byte("Hello World!")) },
+				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
 			},
 			wantHeaders: http.Header{
 				"Content-Length": []string{"5"},
 				"Content-Type":   []string{"text/plain; charset=utf-8"},
 			},
-			wantBody: []byte("Hello World!"),
+			wantBody: []byte(`Hello World!`),
 		},
 	}
 

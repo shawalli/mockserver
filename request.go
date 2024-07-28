@@ -29,6 +29,8 @@ var (
 )
 
 type Request struct {
+	parent *Mock
+
 	method string
 	url    *url.URL
 	body   []byte
@@ -37,16 +39,16 @@ type Request struct {
 	returnHeaders    *http.Header
 	returnBody       []byte
 
-	parent        *Mock
 	repeatability int
 	totalRequests int
 }
 
-func newRequest(parent *Mock, method string, URL *url.URL) *Request {
+func newRequest(parent *Mock, method string, URL *url.URL, body []byte) *Request {
 	return &Request{
+		parent: parent,
 		method: method,
 		url:    URL,
-		parent: parent,
+		body:   body,
 	}
 }
 
@@ -56,12 +58,6 @@ func (r *Request) lock() {
 
 func (r *Request) unlock() {
 	r.parent.mutex.Unlock()
-}
-
-func (r *Request) Body(body []byte) *Request {
-	r.body = body
-
-	return r
 }
 
 func (r *Request) QueryParam(param string, value string) *Request {
@@ -159,8 +155,8 @@ func (r *Request) Times(i int) *Request {
 	return r
 }
 
-func (r *Request) On(method string, path string) *Request {
-	return r.parent.On(method, path)
+func (r *Request) On(method string, path string, body []byte) *Request {
+	return r.parent.On(method, path, body)
 }
 
 func diffMissing(v string) (string, bool) {

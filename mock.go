@@ -20,7 +20,7 @@ type Mock struct {
 	mutex sync.Mutex
 }
 
-func (m *Mock) On(method string, URL string) *Request {
+func (m *Mock) On(method string, URL string, body []byte) *Request {
 	parsedURL, err := url.Parse(URL)
 	if err != nil {
 		m.fail(fmt.Sprintf("failed to parse url. Error: %v\n", err))
@@ -30,6 +30,7 @@ func (m *Mock) On(method string, URL string) *Request {
 		m,
 		method,
 		parsedURL,
+		body,
 	)
 
 	m.mutex.Lock()
@@ -154,10 +155,7 @@ func (m *Mock) Requested(r *http.Request) *Request {
 	request.totalRequests++
 
 	// add the request
-	nr := newRequest(m, r.Method, r.URL)
-	if requestBody != nil {
-		nr.Body(requestBody)
-	}
+	nr := newRequest(m, r.Method, r.URL, requestBody)
 	m.Requests = append(m.Requests, *nr)
 	m.mutex.Unlock()
 

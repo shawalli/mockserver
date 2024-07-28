@@ -23,7 +23,7 @@ func TestSomething(t *testing.T) {
     defer ts.Close()
 
     // Configure request mocks
-    m.On(http.MethodPut, fmt.Sprintf("%s/foo/1234", server.URL).Body([]byte{`{"bar": "baz"}`}).ReturnStatusNoContent().Once()
+    m.On(http.MethodPut, fmt.Sprintf("%s/foo/1234", server.URL, []byte{`{"bar": "baz"}`}).ReturnStatusNoContent().Once()
 
     // Application code
     c := server.Client()
