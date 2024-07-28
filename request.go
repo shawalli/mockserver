@@ -60,18 +60,6 @@ func (r *Request) unlock() {
 	r.parent.mutex.Unlock()
 }
 
-func (r *Request) QueryParam(param string, value string) *Request {
-	r.lock()
-	defer r.unlock()
-
-	values := r.url.Query()
-
-	values.Set(param, value)
-	r.url.RawQuery = values.Encode()
-
-	return r
-}
-
 func (r *Request) ReturnStatusCode(statusCode int) *Request {
 	r.lock()
 	defer r.unlock()

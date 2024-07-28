@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type constraintFunc func(r *Request) *Request
+type modifierFunc func(r *Request) *Request
 
 type badReader struct{}
 
@@ -21,15 +21,15 @@ func (br *badReader) Read(_ []byte) (n int, err error) {
 
 func TestRequest_Modifiers(t *testing.T) {
 	tests := []struct {
-		name        string
-		method      string
-		url         string
-		body        []byte
-		constraints []constraintFunc
-		want        *Request
+		name      string
+		method    string
+		url       string
+		body      []byte
+		modifiers []modifierFunc
+		want      *Request
 	}{
 		{
-			name:   "no-constraints",
+			name:   "no-modifiers",
 			method: http.MethodGet,
 			url:    "https://test.com/foo",
 			want: &Request{
@@ -83,12 +83,9 @@ func TestRequest_Modifiers(t *testing.T) {
 			},
 		},
 		{
-			name:   "query-param-first",
+			name:   "query-param",
 			method: http.MethodGet,
-			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
-				func(r *Request) *Request { return r.QueryParam("limit", "1234") },
-			},
+			url:    "https://test.com/foo?limit=1234",
 			want: &Request{
 				method: "GET",
 				url: &url.URL{
@@ -100,31 +97,23 @@ func TestRequest_Modifiers(t *testing.T) {
 			},
 		},
 		{
-			name:   "query-param-repeat-call",
+			name:   "query-param-multiple-values",
 			method: http.MethodGet,
-			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
-				func(r *Request) *Request { return r.QueryParam("limit", "1234") },
-				func(r *Request) *Request { return r.QueryParam("limit", "5678") },
-			},
+			url:    "https://test.com/foo?limit=1234&limit=5678",
 			want: &Request{
 				method: "GET",
 				url: &url.URL{
 					Scheme:   "https",
 					Host:     "test.com",
 					Path:     "/foo",
-					RawQuery: "limit=5678",
+					RawQuery: "limit=1234&limit=5678",
 				},
 			},
 		},
 		{
-			name:   "query-param",
+			name:   "query-param-multiples-keys",
 			method: http.MethodGet,
-			url:    "https://test.com/foo?next=aaa21242&count=2",
-			constraints: []constraintFunc{
-				func(r *Request) *Request { return r.QueryParam("limit", "1234") },
-				func(r *Request) *Request { return r.QueryParam("next", "aaa21242") },
-			},
+			url:    "https://test.com/foo?next=aaa21242&count=2&limit=1234",
 			want: &Request{
 				method: "GET",
 				url: &url.URL{
@@ -139,7 +128,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "return-status-code",
 			method: AnyMethod,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnStatusCode(http.StatusForbidden) },
 			},
 			want: &Request{
@@ -156,7 +145,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "return-status-ok",
 			method: AnyMethod,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnStatusOK() },
 			},
 			want: &Request{
@@ -173,7 +162,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "return-status-no-content",
 			method: AnyMethod,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnStatusNoContent() },
 			},
 			want: &Request{
@@ -190,7 +179,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "return-headers-nil",
 			method: AnyMethod,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
 			},
 			want: &Request{
@@ -209,7 +198,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "return-headers",
 			method: AnyMethod,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Type", "application/json") },
 			},
@@ -230,7 +219,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "return-headers-overwrite",
 			method: AnyMethod,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "7") },
 			},
@@ -250,7 +239,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			name:   "return-body",
 			method: AnyMethod,
 			url:    "https://test.com/foo",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
 			},
 			want: &Request{
@@ -278,7 +267,7 @@ func TestRequest_Modifiers(t *testing.T) {
 			got := newRequest(m, tt.method, url, tt.body)
 
 			// Test
-			for _, constraint := range tt.constraints {
+			for _, constraint := range tt.modifiers {
 				got = constraint(got)
 			}
 
@@ -318,7 +307,7 @@ func TestRequest_WriteResponse_MissingStatusCode(t *testing.T) {
 func TestRequest_WriteResponse(t *testing.T) {
 	tests := []struct {
 		name        string
-		constraints []constraintFunc
+		modifiers   []modifierFunc
 		wantHeaders http.Header
 		wantBody    []byte
 	}{
@@ -329,7 +318,7 @@ func TestRequest_WriteResponse(t *testing.T) {
 		},
 		{
 			name: "headers-no-body",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Type", "text/plain; charset=utf-8") },
 			},
@@ -341,7 +330,7 @@ func TestRequest_WriteResponse(t *testing.T) {
 		},
 		{
 			name: "no-headers-body",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
 			},
 			wantHeaders: http.Header{},
@@ -349,7 +338,7 @@ func TestRequest_WriteResponse(t *testing.T) {
 		},
 		{
 			name: "headers-and-body",
-			constraints: []constraintFunc{
+			modifiers: []modifierFunc{
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
 				func(r *Request) *Request { return r.ReturnHeaders("Content-Type", "text/plain; charset=utf-8") },
 				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
@@ -374,7 +363,7 @@ func TestRequest_WriteResponse(t *testing.T) {
 				parent:           new(Mock),
 				returnStatusCode: http.StatusOK,
 			}
-			for _, constraint := range tt.constraints {
+			for _, constraint := range tt.modifiers {
 				r = constraint(r)
 			}
 

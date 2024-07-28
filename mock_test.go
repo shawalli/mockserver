@@ -99,8 +99,8 @@ func TestMock_findExpectedRequest_Fail(t *testing.T) {
 			// Setup
 			m := new(Mock)
 			m.On(http.MethodPatch, "https://test.com/bars/1234", []byte(`{"quz": "east"}`))
-			m.On(http.MethodGet, "https://test.com/bars/1234", nil).QueryParam("limit", "1")
-			m.On(http.MethodGet, "https://test.com/bars/1234", nil).QueryParam("limit", "100").QueryParam("page", "2")
+			m.On(http.MethodGet, "https://test.com/bars/1234?limit=1", nil)
+			m.On(http.MethodGet, "https://test.com/bars/1234?limit=100&page=2", nil)
 			m.On(http.MethodPut, "https://test.com/bars/1234", nil)
 
 			// Test
@@ -161,7 +161,7 @@ func TestMock_findExpectedRequest(t *testing.T) {
 			m := new(Mock)
 			m.On(http.MethodPatch, "https://test.com/bars/1234", []byte(`{"quz": "east"}`))
 			m.On(AnyMethod, "https://test.com/foo", nil)
-			m.On(http.MethodGet, "https://test.com/bars/1234", nil).QueryParam("limit", "1")
+			m.On(http.MethodGet, "https://test.com/bars/1234?limit=1", nil)
 			m.On(http.MethodPut, "https://test.com/bars/1234", nil)
 
 			// Test
