@@ -14,9 +14,7 @@ import (
 )
 
 var (
-	ErrReturnStatusCode = errors.New("invalid return status code")
-	ErrWriteReturnBody  = errors.New("error writing return body")
-	ErrReadBody         = errors.New("error reading body")
+	ErrReadBody = errors.New("error reading body")
 
 	AnyMethod = "mock.AnyMethod"
 
@@ -35,9 +33,7 @@ type Request struct {
 	url    *url.URL
 	body   []byte
 
-	returnStatusCode int
-	returnHeaders    *http.Header
-	returnBody       []byte
+	response *Response
 
 	repeatability int
 	totalRequests int
@@ -60,71 +56,27 @@ func (r *Request) unlock() {
 	r.parent.mutex.Unlock()
 }
 
-func (r *Request) ReturnStatusCode(statusCode int) *Request {
+func (r *Request) Respond(statusCode int, body []byte) *Response {
+	resp := newResponse(
+		r,
+		statusCode,
+		body,
+	)
+
 	r.lock()
 	defer r.unlock()
 
-	r.returnStatusCode = statusCode
+	r.response = resp
 
-	return r
+	return resp
 }
 
-func (r *Request) ReturnStatusOK() *Request {
-	return r.ReturnStatusCode(http.StatusOK)
+func (r *Request) RespondOK(body []byte) *Response {
+	return r.Respond(http.StatusOK, body)
 }
 
-func (r *Request) ReturnStatusNoContent() *Request {
-	return r.ReturnStatusCode(http.StatusNoContent)
-}
-
-func (r *Request) ReturnHeaders(header string, value string) *Request {
-	r.lock()
-	defer r.unlock()
-
-	if r.returnHeaders == nil {
-		r.returnHeaders = &http.Header{}
-	}
-
-	r.returnHeaders.Set(header, value)
-
-	return r
-}
-
-func (r *Request) ReturnBody(body []byte) *Request {
-	r.lock()
-	defer r.unlock()
-
-	r.returnBody = body
-
-	return r
-}
-
-func (r *Request) WriteResponse(w http.ResponseWriter) error {
-	r.lock()
-	defer r.unlock()
-
-	if r.returnStatusCode == 0 {
-		return ErrReturnStatusCode
-	}
-
-	if r.returnHeaders != nil {
-		for header, values := range *r.returnHeaders {
-			for _, value := range values {
-				w.Header().Set(header, value)
-			}
-		}
-	}
-
-	w.WriteHeader(r.returnStatusCode)
-
-	if r.returnBody != nil {
-		_, err := w.Write(r.returnBody)
-		if err != nil {
-			return ErrWriteReturnBody
-		}
-	}
-
-	return nil
+func (r *Request) RespondNoContent() *Response {
+	return r.Respond(http.StatusNoContent, nil)
 }
 
 func (r *Request) Once() *Request {

@@ -3,7 +3,6 @@ package httpmock
 import (
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -11,42 +10,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type modifierFunc func(r *Request) *Request
-
-type badReader struct{}
-
-func (br *badReader) Read(_ []byte) (n int, err error) {
-	return 0, io.ErrUnexpectedEOF
-}
-
-func TestRequest_Modifiers(t *testing.T) {
+func Test_newRequest(t *testing.T) {
 	tests := []struct {
-		name      string
-		method    string
-		url       string
-		body      []byte
-		modifiers []modifierFunc
-		want      *Request
+		name   string
+		method string
+		url    string
+		body   []byte
+		want   *Request
 	}{
 		{
-			name:   "no-modifiers",
+			name:   "basic",
 			method: http.MethodGet,
 			url:    "https://test.com/foo",
 			want: &Request{
 				method: "GET",
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-			},
-		},
-		{
-			name:   "method",
-			method: http.MethodPut,
-			url:    "https://test.com/foo",
-			want: &Request{
-				method: "PUT",
 				url: &url.URL{
 					Scheme: "https",
 					Host:   "test.com",
@@ -124,134 +101,6 @@ func TestRequest_Modifiers(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:   "return-status-code",
-			method: AnyMethod,
-			url:    "https://test.com/foo",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnStatusCode(http.StatusForbidden) },
-			},
-			want: &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				returnStatusCode: 403,
-			},
-		},
-		{
-			name:   "return-status-ok",
-			method: AnyMethod,
-			url:    "https://test.com/foo",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnStatusOK() },
-			},
-			want: &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				returnStatusCode: 200,
-			},
-		},
-		{
-			name:   "return-status-no-content",
-			method: AnyMethod,
-			url:    "https://test.com/foo",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnStatusNoContent() },
-			},
-			want: &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				returnStatusCode: 204,
-			},
-		},
-		{
-			name:   "return-headers-nil",
-			method: AnyMethod,
-			url:    "https://test.com/foo",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
-			},
-			want: &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				returnHeaders: &http.Header{
-					"Content-Length": []string{"5"},
-				},
-			},
-		},
-		{
-			name:   "return-headers",
-			method: AnyMethod,
-			url:    "https://test.com/foo",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Type", "application/json") },
-			},
-			want: &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				returnHeaders: &http.Header{
-					"Content-Length": []string{"5"},
-					"Content-Type":   []string{"application/json"},
-				},
-			},
-		},
-		{
-			name:   "return-headers-overwrite",
-			method: AnyMethod,
-			url:    "https://test.com/foo",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "7") },
-			},
-			want: &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				returnHeaders: &http.Header{
-					"Content-Length": []string{"7"},
-				},
-			},
-		},
-		{
-			name:   "return-body",
-			method: AnyMethod,
-			url:    "https://test.com/foo",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
-			},
-			want: &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-					Path:   "/foo",
-				},
-				returnBody: []byte(`Hello World!`),
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -264,12 +113,8 @@ func TestRequest_Modifiers(t *testing.T) {
 				t.Fatalf("unexpected failure to parse test url: %v", err)
 			}
 
-			got := newRequest(m, tt.method, url, tt.body)
-
 			// Test
-			for _, constraint := range tt.modifiers {
-				got = constraint(got)
-			}
+			got := newRequest(m, tt.method, url, tt.body)
 
 			// Assertions
 			gotQuery := got.url.Query()
@@ -284,115 +129,62 @@ func TestRequest_Modifiers(t *testing.T) {
 	}
 }
 
-func TestRequest_WriteResponse_MissingStatusCode(t *testing.T) {
+func TestRequest_Respond(t *testing.T) {
 	// Setup
-	r := &Request{
-		method: AnyMethod,
-		url: &url.URL{
-			Scheme: "https",
-			Host:   "test.com",
-		},
-		parent: new(Mock),
-	}
-
-	mockResponseWriter := httptest.NewRecorder()
+	r := &Request{parent: new(Mock)}
 
 	// Test
-	gotErr := r.WriteResponse(mockResponseWriter)
+	got := r.Respond(http.StatusForbidden, []byte(`And stay out!`))
 
 	// Assertions
-	assert.ErrorIs(t, gotErr, ErrReturnStatusCode)
+	want := &Response{
+		parent:     r,
+		statusCode: http.StatusForbidden,
+		header:     http.Header{},
+		body:       []byte(`And stay out!`),
+	}
+	assert.Equal(t, want, got)
+	assert.Equal(t, got, r.response)
 }
 
-func TestRequest_WriteResponse(t *testing.T) {
-	tests := []struct {
-		name        string
-		modifiers   []modifierFunc
-		wantHeaders http.Header
-		wantBody    []byte
-	}{
-		{
-			name:        "no-headers-no-body",
-			wantHeaders: http.Header{},
-			wantBody:    []byte(``),
-		},
-		{
-			name: "headers-no-body",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Type", "text/plain; charset=utf-8") },
-			},
-			wantHeaders: http.Header{
-				"Content-Length": []string{"5"},
-				"Content-Type":   []string{"text/plain; charset=utf-8"},
-			},
-			wantBody: []byte(``),
-		},
-		{
-			name: "no-headers-body",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
-			},
-			wantHeaders: http.Header{},
-			wantBody:    []byte(`Hello World!`),
-		},
-		{
-			name: "headers-and-body",
-			modifiers: []modifierFunc{
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Length", "5") },
-				func(r *Request) *Request { return r.ReturnHeaders("Content-Type", "text/plain; charset=utf-8") },
-				func(r *Request) *Request { return r.ReturnBody([]byte(`Hello World!`)) },
-			},
-			wantHeaders: http.Header{
-				"Content-Length": []string{"5"},
-				"Content-Type":   []string{"text/plain; charset=utf-8"},
-			},
-			wantBody: []byte(`Hello World!`),
-		},
+func TestRequest_RespondOK(t *testing.T) {
+	// Setup
+	r := &Request{parent: new(Mock)}
+
+	// Test
+	got := r.RespondOK([]byte(`Hello World!`))
+
+	// Assertions
+	want := &Response{
+		parent:     r,
+		statusCode: http.StatusOK,
+		header:     http.Header{},
+		body:       []byte(`Hello World!`),
 	}
+	assert.Equal(t, want, got)
+	assert.Equal(t, got, r.response)
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup
-			r := &Request{
-				method: AnyMethod,
-				url: &url.URL{
-					Scheme: "https",
-					Host:   "test.com",
-				},
-				parent:           new(Mock),
-				returnStatusCode: http.StatusOK,
-			}
-			for _, constraint := range tt.modifiers {
-				r = constraint(r)
-			}
+func TestRequest_RespondNoContent(t *testing.T) {
+	// Setup
+	r := &Request{parent: new(Mock)}
 
-			mockResponseWriter := httptest.NewRecorder()
+	// Test
+	got := r.RespondNoContent()
 
-			// Test
-			r.WriteResponse(mockResponseWriter)
-
-			got := mockResponseWriter.Result()
-
-			gotBody, err := io.ReadAll(got.Body)
-			if err != nil {
-				t.Fatalf("unexpected error reading response body: %v", err)
-			}
-			defer got.Body.Close()
-
-			// Assertions
-			assert.Equal(t, http.StatusOK, got.StatusCode)
-			assert.Equal(t, tt.wantHeaders, got.Header)
-			assert.Equal(t, tt.wantBody, gotBody)
-		})
+	// Assertions
+	want := &Response{
+		parent:     r,
+		header:     http.Header{},
+		statusCode: http.StatusNoContent,
 	}
+	assert.Equal(t, want, got)
+	assert.Equal(t, got, r.response)
 }
 
 func TestRequest_Times(t *testing.T) {
 	// Setup
-	r := Request{
-		parent: new(Mock),
-	}
+	r := Request{parent: new(Mock)}
 
 	// Test
 	r.Times(4)

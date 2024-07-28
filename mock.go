@@ -105,7 +105,7 @@ func (m *Mock) findClosestRequest(other *http.Request) (*Request, string) {
 	return bestMatch.request, bestMatch.mismatch
 }
 
-func (m *Mock) Requested(r *http.Request) *Request {
+func (m *Mock) Requested(r *http.Request) *Response {
 	m.mutex.Lock()
 
 	requestBody, err := readHTTPRequestBody(r)
@@ -159,7 +159,7 @@ func (m *Mock) Requested(r *http.Request) *Request {
 	m.Requests = append(m.Requests, *nr)
 	m.mutex.Unlock()
 
-	return request
+	return request.response
 }
 
 type matchCandidate struct {

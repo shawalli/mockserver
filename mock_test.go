@@ -11,6 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type badReader struct{}
+
+func (br *badReader) Read(_ []byte) (n int, err error) {
+	return 0, io.ErrUnexpectedEOF
+}
+
 func mustNewRequest(r *http.Request, err error) *http.Request {
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error making request: %v", err))
@@ -291,7 +297,7 @@ func TestMock_Requested_FailToReadRequestBody(t *testing.T) {
 
 	fakeT := &MockTestingT{}
 	m := new(Mock).Test(fakeT)
-	m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK()
+	m.On(http.MethodGet, "https://test.com/foo", nil).RespondOK(nil)
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
 
@@ -302,7 +308,6 @@ func TestMock_Requested_FailToReadRequestBody(t *testing.T) {
 	assert.True(t, gotPanic)
 	assert.Equal(t, 1, fakeT.failNowCount)
 	assert.Nil(t, got)
-	assert.Equal(t, 0, got.totalRequests)
 }
 
 func TestMock_Requested_FailToFindAnyMatch(t *testing.T) {
@@ -316,7 +321,7 @@ func TestMock_Requested_FailToFindAnyMatch(t *testing.T) {
 
 	fakeT := &MockTestingT{}
 	m := new(Mock).Test(fakeT)
-	m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK()
+	m.On(http.MethodGet, "https://test.com/foo", nil).RespondOK(nil)
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
@@ -327,7 +332,6 @@ func TestMock_Requested_FailToFindAnyMatch(t *testing.T) {
 	assert.True(t, gotPanic)
 	assert.Equal(t, 1, fakeT.failNowCount)
 	assert.Nil(t, got)
-	assert.Equal(t, 0, got.totalRequests)
 }
 
 func TestMock_Requested_FailToFindRepeatableMatch(t *testing.T) {
@@ -341,7 +345,7 @@ func TestMock_Requested_FailToFindRepeatableMatch(t *testing.T) {
 
 	fakeT := &MockTestingT{}
 	m := new(Mock).Test(fakeT)
-	m.On(http.MethodPut, "https://test.com/foo", nil).ReturnStatusOK().Once()
+	m.On(http.MethodPut, "https://test.com/foo", nil).RespondOK(nil).Once()
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
@@ -353,7 +357,6 @@ func TestMock_Requested_FailToFindRepeatableMatch(t *testing.T) {
 	assert.True(t, gotPanic)
 	assert.Equal(t, 1, fakeT.failNowCount)
 	assert.Nil(t, got)
-	assert.Equal(t, 0, got.totalRequests)
 }
 
 func TestMock_Requested_FailToFindClosestRequest(t *testing.T) {
@@ -377,13 +380,13 @@ func TestMock_Requested_FailToFindClosestRequest(t *testing.T) {
 	assert.True(t, gotPanic)
 	assert.Equal(t, 1, fakeT.failNowCount)
 	assert.Nil(t, got)
-	assert.Equal(t, 0, got.totalRequests)
 }
 
 func TestMock_Requested(t *testing.T) {
 	// Setup
 	m := new(Mock).Test(t)
-	want := m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK()
+	wantReq := m.On(http.MethodGet, "https://test.com/foo", nil)
+	wantResp := wantReq.RespondOK(nil)
 
 	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
@@ -391,14 +394,16 @@ func TestMock_Requested(t *testing.T) {
 	got := m.Requested(test)
 
 	// Assertions
-	assert.Equal(t, want, got)
-	assert.Equal(t, 1, got.totalRequests)
+	assert.Equal(t, wantResp, got)
+	assert.Equal(t, got.parent, wantReq)
+	assert.Equal(t, 1, got.parent.totalRequests)
 }
 
 func TestMock_RequestedOnce(t *testing.T) {
 	// Setup
 	m := new(Mock).Test(t)
-	want := m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK().Once()
+	wantReq := m.On(http.MethodGet, "https://test.com/foo", nil).Once()
+	wantResp := wantReq.RespondOK(nil)
 
 	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
@@ -406,15 +411,17 @@ func TestMock_RequestedOnce(t *testing.T) {
 	got := m.Requested(test)
 
 	// Assertions
-	assert.Equal(t, want, got)
-	assert.Equal(t, -1, got.repeatability)
-	assert.Equal(t, 1, got.totalRequests)
+	assert.Equal(t, wantResp, got)
+	assert.Equal(t, got.parent, wantReq)
+	assert.Equal(t, -1, got.parent.repeatability)
+	assert.Equal(t, 1, got.parent.totalRequests)
 }
 
 func TestMock_RequestedTimes(t *testing.T) {
 	// Setup
 	m := new(Mock).Test(t)
-	want := m.On(http.MethodGet, "https://test.com/foo", nil).ReturnStatusOK().Times(4)
+	wantReq := m.On(http.MethodGet, "https://test.com/foo", nil).Times(4)
+	wantResp := wantReq.RespondOK(nil)
 
 	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
@@ -422,9 +429,10 @@ func TestMock_RequestedTimes(t *testing.T) {
 	got := m.Requested(test)
 
 	// Assertions
-	assert.Equal(t, want, got)
-	assert.Equal(t, 3, got.repeatability)
-	assert.Equal(t, 1, got.totalRequests)
+	assert.Equal(t, wantResp, got)
+	assert.Equal(t, got.parent, wantReq)
+	assert.Equal(t, 3, got.parent.repeatability)
+	assert.Equal(t, 1, got.parent.totalRequests)
 }
 
 func TestMatchCandidate_isBetterMatchThan(t *testing.T) {

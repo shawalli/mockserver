@@ -17,17 +17,26 @@ func TestSomething(t *testing.T) {
 
     // Setup test server to log requests anre return expected responses
     ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        request := m.Requested(r)
-        request.WriteResponse(w)
+        response := m.Requested(r)
+        if _, err := response.Write(w); err != nil {
+            t.Fatalf("Failed to write test-server response: %v", err)
+        }
     })
     defer ts.Close()
 
     // Configure request mocks
-    m.On(http.MethodPut, fmt.Sprintf("%s/foo/1234?preview=true", server.URL, []byte{`{"bar": "baz"}`}).ReturnStatusNoContent().Once()
+    m.On(
+        http.MethodPatch,
+        fmt.Sprintf("%s/foo/1234?preview=true", server.URL),
+        []byte{`{"bar": "baz"}`},
+    ).Respond(
+        http.StatusOK,
+        []byte(`Success!`),
+    ).Once()
 
     // Application code
     c := server.Client()
-    res, err := c.Put("/foo/1234?preview=true", io.NopCloser(strings.NewReader("{{"bar": "baz"}}")))
+    res, err := c.Patch("/foo/1234?preview=true", io.NopCloser(strings.NewReader(`Success!`)))
 
     // Assert application code
     ...
