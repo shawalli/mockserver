@@ -768,7 +768,7 @@ func TestRequest_String(t *testing.T) {
 			want: `
 Method: (Missing)
 URL: (Missing)
-Body: (Missing)`,
+Body: (0) (Missing)`,
 		},
 		{
 			name: "missing-method",
@@ -957,7 +957,7 @@ URL: https://test.com/foo?limit=1#back
 	Path: /foo
 	Query: limit=1
 	Fragment: back
-Body: (Missing)`,
+Body: (0) (Missing)`,
 		},
 		{
 			name: "missing-body",

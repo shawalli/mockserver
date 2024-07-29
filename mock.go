@@ -1,14 +1,21 @@
 package httpmock
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+type tHelper interface {
+	Helper()
+}
 
 type Mock struct {
 	ExpectedRequests []*Request
@@ -62,11 +69,15 @@ func (m *Mock) expectedRequests() []*Request {
 	return append([]*Request{}, m.ExpectedRequests...)
 }
 
+func (m *Mock) requests() []Request {
+	return append([]Request{}, m.Requests...)
+}
+
 // https://goplay.tools/snippet/_1Iu9dcSHKt
 func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
 	var expectedRequest *Request
 	for i, er := range m.ExpectedRequests {
-		if er.method != AnyMethod && er.method != actual.Method {
+		if _, d := er.diffMethod(actual); d != 0 {
 			continue
 		}
 
@@ -185,5 +196,137 @@ func (mc matchCandidate) isBetterMatchThan(other matchCandidate) bool {
 		return true
 	}
 
+	return false
+}
+
+func (m *Mock) AssertExpectations(t mock.TestingT) bool {
+	if th, ok := t.(tHelper); ok {
+		th.Helper()
+	}
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	var failedExpectations int
+
+	expectedRequests := m.expectedRequests()
+	for _, expectedRequest := range expectedRequests {
+		if satisfied, reason := m.checkExpectation(expectedRequest); !satisfied {
+			failedExpectations++
+			t.Logf(reason)
+		}
+	}
+
+	if failedExpectations != 0 {
+		t.Errorf("FAIL: %d out of %d expectation(s) were met.\n\tThe code you are testing needs to make %d more requests(s).", len(expectedRequests)-failedExpectations, len(expectedRequests), failedExpectations)
+	}
+
+	return failedExpectations == 0
+}
+
+func (m *Mock) AssertNumberOfRequests(t mock.TestingT, method string, path string, expectedRequests int) bool {
+	if th, ok := t.(tHelper); ok {
+		th.Helper()
+	}
+
+	// Remove parts of the URL for the purposes of general comparison
+	u, err := url.Parse(path)
+	if err != nil {
+		t.Errorf("FAIL: unable to parse path %q into URL: %v", path, err)
+		t.FailNow()
+	}
+	u.User = nil
+	u.RawQuery = ""
+	u.Fragment = ""
+	path = u.String()
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	var actualRequests int
+	for _, request := range m.requests() {
+		if request.method != method {
+			continue
+		}
+
+		ru := *request.url
+		ru.User = nil
+		ru.RawQuery = ""
+		ru.Fragment = ""
+		if ru.String() != path {
+			continue
+		}
+
+		actualRequests++
+	}
+
+	return assert.Equal(t, expectedRequests, actualRequests)
+}
+
+func (m *Mock) AssertRequested(t mock.TestingT, method string, path string, body []byte) bool {
+	if th, ok := t.(tHelper); ok {
+		th.Helper()
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		t.Errorf("FAIL: unable to parse path %q into URL: %v", path, err)
+		t.FailNow()
+	}
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if !m.checkWasRequested(method, u, body) {
+		tempRequest := newRequest(m, method, u, body)
+		v := "\t" + strings.Join(strings.Split(tempRequest.String(), "\n"), "\n\t")
+		return assert.Fail(
+			t,
+			"Should have requested with the given constraints",
+			fmt.Sprintf("Expected to have been requested with\n%v\nbut no actual requests happened", v),
+		)
+	}
+	return true
+}
+
+func (m *Mock) AssertNotRequested(t mock.TestingT, method string, path string, body []byte) bool {
+	if th, ok := t.(tHelper); ok {
+		th.Helper()
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		t.Errorf("FAIL: unable to parse path %q into URL: %v", path, err)
+		t.FailNow()
+	}
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.checkWasRequested(method, u, body) {
+		tempRequest := newRequest(m, method, u, body)
+		v := "\t" + strings.Join(strings.Split(tempRequest.String(), "\n"), "\n\t")
+		return assert.Fail(
+			t,
+			"Should not have been requested with the given constraints",
+			fmt.Sprintf("Expected not to have been requested with\n%v\nbut actually it was.", v),
+		)
+	}
+	return true
+}
+
+func (m *Mock) checkExpectation(request *Request) (bool, string) {
+	if (!m.checkWasRequested(request.method, request.url, request.body) && request.totalRequests == 0) || (request.repeatability > 0) {
+		return false, fmt.Sprintf("FAIL:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), bodyFragment(request.body))
+	}
+	return true, fmt.Sprintf("PASS:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), bodyFragment(request.body))
+}
+
+func (m *Mock) checkWasRequested(method string, URL *url.URL, body []byte) bool {
+	tempHTTPRequest := &http.Request{
+		Method: method,
+		URL:    URL,
+		Body:   io.NopCloser(bytes.NewReader(body)),
+	}
+	for _, request := range m.requests() {
+		if _, d := request.diff(tempHTTPRequest); d == 0 {
+			return true
+		}
+	}
 	return false
 }

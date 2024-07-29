@@ -1,6 +1,7 @@
 package httpmock
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +35,8 @@ func (m *MockTestingT) FailNow() {
 	panic(mockTestingTFailNowCalled)
 }
 
+func (m *MockTestingT) Helper() {}
+
 func mustNewRequest(r *http.Request, err error) *http.Request {
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error making request: %v", err))
@@ -41,23 +44,46 @@ func mustNewRequest(r *http.Request, err error) *http.Request {
 	return r
 }
 
-func TestMock_DoBadURL(t *testing.T) {
+func TestMock_fail_NoTestingT(t *testing.T) {
 	// Setup
-	var gotPanic string
+	var successfulCall int
 	defer func() {
-		if r := recover(); r != nil {
-			gotPanic = r.(string)
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
 		}
+		// Assertions
+		assert.Equal(t, "I failed...badly! some error", r.(string))
+		assert.Zero(t, successfulCall)
 	}()
 
 	m := new(Mock)
 
 	// Test
-	m.On(http.MethodGet, "\r", nil)
+	m.fail("I failed...%s %v", "badly!", errors.New("some error"))
+}
 
-	// Assertions
-	wantPanic := "failed to parse url"
-	assert.Truef(t, strings.HasPrefix(gotPanic, wantPanic), "panic message %q does not contain %q", gotPanic, wantPanic)
+func TestMock_DoBadURL(t *testing.T) {
+	// Setup
+	var successfulRequestedCall int
+
+	mockT := new(MockTestingT)
+	m := new(Mock).Test(mockT)
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Zero(t, successfulRequestedCall)
+	}()
+
+	// Test
+	m.On(http.MethodGet, "\r", nil)
+	successfulRequestedCall++
 }
 
 func TestMock_Do(t *testing.T) {
@@ -282,98 +308,107 @@ func TestMock_findClosestRequest(t *testing.T) {
 
 func TestMock_Requested_FailToReadRequestBody(t *testing.T) {
 	// Setup
-	var gotPanic bool
-	defer func() {
-		if r := recover(); r != nil {
-			gotPanic = true
-		}
-	}()
+	var successfulRequestedCall int
 
-	fakeT := &MockTestingT{}
-	m := new(Mock).Test(fakeT)
+	mockT := &MockTestingT{}
+	m := new(Mock).Test(mockT)
 	m.On(http.MethodGet, "https://test.com/foo", nil).RespondOK(nil)
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
 
-	// Test
-	got := m.Requested(test)
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Zero(t, successfulRequestedCall)
+	}()
 
-	// Assertions
-	assert.True(t, gotPanic)
-	assert.Equal(t, 1, fakeT.failNowCount)
-	assert.Nil(t, got)
+	// Test
+	m.Requested(test)
+	successfulRequestedCall++
 }
 
 func TestMock_Requested_FailToFindAnyMatch(t *testing.T) {
 	// Setup
-	var gotPanic bool
-	defer func() {
-		if r := recover(); r != nil {
-			gotPanic = true
-		}
-	}()
+	var successfulRequestedCall int
 
-	fakeT := &MockTestingT{}
-	m := new(Mock).Test(fakeT)
+	mockT := &MockTestingT{}
+	m := new(Mock).Test(mockT)
 	m.On(http.MethodGet, "https://test.com/foo", nil).RespondOK(nil)
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
-	// Test
-	got := m.Requested(test)
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Zero(t, successfulRequestedCall)
+	}()
 
-	// Assertions
-	assert.True(t, gotPanic)
-	assert.Equal(t, 1, fakeT.failNowCount)
-	assert.Nil(t, got)
+	// Test
+	m.Requested(test)
+	successfulRequestedCall++
 }
 
 func TestMock_Requested_FailToFindRepeatableMatch(t *testing.T) {
 	// Setup
-	var gotPanic bool
-	defer func() {
-		if r := recover(); r != nil {
-			gotPanic = true
-		}
-	}()
+	var successfulRequestedCall int
 
-	fakeT := &MockTestingT{}
-	m := new(Mock).Test(fakeT)
+	mockT := &MockTestingT{}
+	m := new(Mock).Test(mockT)
 	m.On(http.MethodPut, "https://test.com/foo", nil).RespondOK(nil).Once()
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
-	// Test
-	_ = m.Requested(test)
-	got := m.Requested(test)
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Equal(t, 1, successfulRequestedCall)
+	}()
 
-	// Assertions
-	assert.True(t, gotPanic)
-	assert.Equal(t, 1, fakeT.failNowCount)
-	assert.Nil(t, got)
+	// Test
+	m.Requested(test)
+	successfulRequestedCall++
+	m.Requested(test)
+	successfulRequestedCall++
 }
 
 func TestMock_Requested_FailToFindClosestRequest(t *testing.T) {
 	// Setup
-	var gotPanic bool
-	defer func() {
-		if r := recover(); r != nil {
-			gotPanic = true
-		}
-	}()
+	var successfulRequestedCall int
 
-	fakeT := &MockTestingT{}
-	m := new(Mock).Test(fakeT)
+	mockT := &MockTestingT{}
+	m := new(Mock).Test(mockT)
 
 	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
-	// Test
-	got := m.Requested(test)
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Zero(t, successfulRequestedCall)
+	}()
 
-	// Assertions
-	assert.True(t, gotPanic)
-	assert.Equal(t, 1, fakeT.failNowCount)
-	assert.Nil(t, got)
+	// Test
+	m.Requested(test)
+	successfulRequestedCall++
 }
 
 func TestMock_Requested(t *testing.T) {
@@ -427,6 +462,631 @@ func TestMock_RequestedTimes(t *testing.T) {
 	assert.Equal(t, got.parent, wantReq)
 	assert.Equal(t, 3, got.parent.repeatability)
 	assert.Equal(t, 1, got.parent.totalRequests)
+}
+
+func TestMock_AssertExpectations_NoMatch(t *testing.T) {
+	// Setup
+	var successfulRequestedCall int
+
+	mockT := new(MockTestingT)
+	m := new(Mock).Test(mockT)
+	m.On(http.MethodDelete, "test.com/foo/1234", nil).RespondOK([]byte(`{"foo": "bar"}`))
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.False(t, m.AssertExpectations(mockT))
+		assert.Zero(t, successfulRequestedCall)
+	}()
+
+	assert.False(t, m.AssertExpectations(mockT))
+
+	httpRequest := mustNewRequest(
+		http.NewRequest(
+			http.MethodGet,
+			"test.com/foo/1234",
+			http.NoBody,
+		),
+	)
+
+	// Test
+	m.Requested(httpRequest)
+	successfulRequestedCall++
+}
+
+func TestMock_AssertExpectations(t *testing.T) {
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		body        []byte
+		httpRequest *http.Request
+	}{
+		{
+			name:   "basic",
+			method: http.MethodGet,
+			path:   "test.com/foo",
+			body:   nil,
+			httpRequest: mustNewRequest(
+				http.NewRequest(
+					http.MethodGet,
+					"test.com/foo",
+					http.NoBody,
+				),
+			),
+		},
+		{
+			name:   "basic-anymethod",
+			method: AnyMethod,
+			path:   "test.com/foo",
+			body:   nil,
+			httpRequest: mustNewRequest(
+				http.NewRequest(
+					http.MethodPost,
+					"test.com/foo",
+					http.NoBody,
+				),
+			),
+		},
+		{
+			name:   "query",
+			method: http.MethodGet,
+			path:   "test.com/foo?page=2",
+			body:   nil,
+			httpRequest: mustNewRequest(
+				http.NewRequest(
+					http.MethodGet,
+					"test.com/foo?page=2",
+					http.NoBody,
+				),
+			),
+		},
+		{
+			name:   "body",
+			method: http.MethodPost,
+			path:   "test.com/foo",
+			body:   []byte(`{"baz": "quz"}`),
+			httpRequest: mustNewRequest(
+				http.NewRequest(
+					http.MethodPost,
+					"test.com/foo",
+					strings.NewReader(`{"baz": "quz"}`),
+				),
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			m := new(Mock)
+			m.On(tt.method, tt.path, tt.body).RespondOK([]byte(`{"foo": "bar"}`))
+
+			mockT := new(testing.T)
+			assert.False(t, m.AssertExpectations(mockT))
+
+			// Test
+			m.Requested(tt.httpRequest)
+
+			// Assertions
+			assert.True(t, m.AssertExpectations(mockT))
+		})
+	}
+}
+
+func TestMock_AssertExpectations_Multiple(t *testing.T) {
+	// Setup
+	m := new(Mock)
+	m.On(http.MethodGet, "test.com/foo/1234", nil).RespondOK([]byte(`{"foo": "bar"}`))
+	m.On(http.MethodDelete, "test.com/foo/1234", nil).RespondNoContent()
+
+	mockT := new(MockTestingT)
+	assert.False(t, m.AssertExpectations(mockT))
+
+	httpRequest := mustNewRequest(
+		http.NewRequest(
+			http.MethodGet,
+			"test.com/foo/1234",
+			http.NoBody,
+		),
+	)
+
+	// Test
+	m.Requested(httpRequest)
+	assert.False(t, m.AssertExpectations(mockT))
+
+	httpRequest = mustNewRequest(
+		http.NewRequest(
+			http.MethodDelete,
+			"test.com/foo/1234",
+			http.NoBody,
+		),
+	)
+	m.Requested(httpRequest)
+
+	// Assertions
+	assert.True(t, m.AssertExpectations(mockT))
+}
+
+func TestMock_AssertExpectations_Once(t *testing.T) {
+	// Setup
+	m := new(Mock)
+	m.On(http.MethodGet, "test.com/foo/1234", nil).RespondOK([]byte(`{"foo": "bar"}`)).Once()
+
+	mockT := new(MockTestingT)
+	assert.False(t, m.AssertExpectations(mockT))
+
+	httpRequest := mustNewRequest(
+		http.NewRequest(
+			http.MethodGet,
+			"test.com/foo/1234",
+			http.NoBody,
+		),
+	)
+
+	// Test
+	m.Requested(httpRequest)
+
+	// Assertions
+	assert.True(t, m.AssertExpectations(mockT))
+}
+
+func TestMock_AssertExpectations_Twice(t *testing.T) {
+	// Setup
+	m := new(Mock)
+	m.On(http.MethodGet, "test.com/foo/1234", nil).RespondOK([]byte(`{"foo": "bar"}`)).Twice()
+
+	mockT := new(MockTestingT)
+	assert.False(t, m.AssertExpectations(mockT))
+
+	httpRequest := mustNewRequest(
+		http.NewRequest(
+			http.MethodGet,
+			"test.com/foo/1234",
+			http.NoBody,
+		),
+	)
+
+	// Test
+	m.Requested(httpRequest)
+	assert.False(t, m.AssertExpectations(mockT))
+
+	m.Requested(httpRequest)
+
+	// Assertions
+	assert.True(t, m.AssertExpectations(mockT))
+}
+
+func TestMock_AssertExpectations_Repeatability(t *testing.T) {
+	// Setup
+	m := new(Mock)
+	m.On(http.MethodGet, "test.com/foo/1234", nil).RespondOK([]byte(`{"foo": "bar"}`))
+
+	mockT := new(MockTestingT)
+	assert.False(t, m.AssertExpectations(mockT))
+
+	httpRequest := mustNewRequest(
+		http.NewRequest(
+			http.MethodGet,
+			"test.com/foo/1234",
+			http.NoBody,
+		),
+	)
+
+	// Test
+	m.Requested(httpRequest)
+	assert.True(t, m.AssertExpectations(mockT))
+
+	m.Requested(httpRequest)
+
+	// Assertions
+	assert.True(t, m.AssertExpectations(mockT))
+}
+
+func TestMock_AssertNumberOfRequests_FailToParsePath(t *testing.T) {
+	// Setup
+	mockT := new(MockTestingT)
+	m := new(Mock).Test(mockT)
+
+	var successfulAssertion int
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.errorfCount)
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Zero(t, successfulAssertion)
+	}()
+
+	// Test
+	m.AssertNumberOfRequests(mockT, http.MethodGet, "https://^.com", 1)
+	successfulAssertion++
+}
+
+func TestMock_AssertNumberOfRequests_Mismatch(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestMethods []string
+		requestPath    string
+		wantMethod     string
+	}{
+		{
+			name:           "too-few-calls",
+			requestMethods: []string{http.MethodGet},
+			requestPath:    "https://test.com",
+			wantMethod:     http.MethodGet,
+		},
+		{
+			name:           "too-many-calls",
+			requestMethods: []string{http.MethodGet, http.MethodGet, http.MethodGet},
+			requestPath:    "https://test.com",
+			wantMethod:     http.MethodGet,
+		},
+		{
+			name:           "wrong-method",
+			requestMethods: []string{http.MethodGet, http.MethodGet},
+			requestPath:    "https://test.com",
+			wantMethod:     http.MethodPut,
+		},
+		{
+			name:           "wrong-path",
+			requestMethods: []string{http.MethodGet, http.MethodGet},
+			requestPath:    "https://test.com/foo",
+			wantMethod:     http.MethodGet,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			mockT := new(MockTestingT)
+			m := new(Mock).Test(mockT)
+
+			for _, method := range tt.requestMethods {
+				u, err := url.Parse(tt.requestPath)
+				if err != nil {
+					t.Fatalf("unexpected error parsing request path: %v", err)
+				}
+
+				r := newRequest(m, method, u, nil)
+
+				m.Requests = append(m.Requests, *r)
+			}
+
+			// Test
+			got := m.AssertNumberOfRequests(mockT, tt.wantMethod, "test.com", 2)
+
+			// Assertions
+			assert.False(t, got)
+		})
+	}
+}
+
+func TestMock_AssertNumberOfRequests(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestMethods []string
+		requestPath    string
+		wantMethod     string
+		wantPath       string
+	}{
+		{
+			name:           "single",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234",
+		},
+		{
+			name:           "multiple",
+			requestMethods: []string{http.MethodDelete, http.MethodPut, http.MethodPatch, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234",
+		},
+		{
+			name:           "ignore-arg-path-user",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://username:password@test.com/foo/1234",
+		},
+		{
+			name:           "ignore-arg-path-query",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234?page=4",
+		},
+		{
+			name:           "ignore-arg-path-fragment",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234#back",
+		},
+		{
+			name:           "ignore-request-path-user",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://username:password@test.com/foo/1234",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234",
+		},
+		{
+			name:           "ignore-request-path-query",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234?page=2",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234",
+		},
+		{
+			name:           "ignore-request-path-fragment",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234#bottom",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234",
+		},
+		{
+			name:           "ignore-different-users",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://username:PASSWORD@test.com/foo/1234",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://username:password@test.com/foo/1234",
+		},
+		{
+			name:           "ignore-different-queries",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234?count=10&page=2&page=3",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234?page=4",
+		},
+		{
+			name:           "ignore-different-fragments",
+			requestMethods: []string{http.MethodDelete, http.MethodDelete},
+			requestPath:    "https://test.com/foo/1234#bottom",
+			wantMethod:     http.MethodDelete,
+			wantPath:       "https://test.com/foo/1234#top",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			mockT := new(MockTestingT)
+			m := new(Mock).Test(mockT)
+
+			for _, method := range tt.requestMethods {
+				u, err := url.Parse(tt.requestPath)
+				if err != nil {
+					t.Fatalf("unexpected error parsing request path: %v", err)
+				}
+
+				r := newRequest(m, method, u, nil)
+
+				m.Requests = append(m.Requests, *r)
+			}
+
+			// Test
+			got := m.AssertNumberOfRequests(mockT, tt.wantMethod, tt.wantPath, 2)
+
+			// Assertions
+			assert.True(t, got)
+		})
+	}
+}
+
+func TestMock_AssertRequested_FailToParsePath(t *testing.T) {
+	// Setup
+	mockT := new(MockTestingT)
+	m := new(Mock).Test(mockT)
+
+	var successfulAssertion int
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.errorfCount)
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Zero(t, successfulAssertion)
+	}()
+
+	// Test
+	m.AssertRequested(mockT, http.MethodGet, "https://^.com", nil)
+	successfulAssertion++
+}
+
+func TestMock_AssertRequested_NoMatch(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+	}{
+		{
+			name:   "wrong-method",
+			method: http.MethodDelete,
+			path:   "https://test.com/foo/1234",
+			body:   nil,
+		},
+		{
+			name:   "wrong-path",
+			method: http.MethodGet,
+			path:   "https://test.com/foo/1234?limit=2",
+			body:   nil,
+		},
+		{
+			name:   "wrong-body",
+			method: http.MethodGet,
+			path:   "https://test.com/foo/1234?limit=2",
+			body:   []byte(`Hello World!`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			mockT := new(MockTestingT)
+			m := new(Mock).Test(mockT)
+
+			u, err := url.Parse(tt.path)
+			if err != nil {
+				t.Fatalf("unexpected error parsing request path: %v", err)
+			}
+
+			r := newRequest(m, tt.method, u, tt.body)
+			m.Requests = append(m.Requests, *r)
+
+			// Test
+			got := m.AssertRequested(
+				mockT,
+				http.MethodGet,
+				"https://test.com/foo/1234",
+				nil,
+			)
+
+			// Assertions
+			assert.False(t, got)
+		})
+	}
+}
+
+func TestMock_AssertRequested(t *testing.T) {
+	// Setup
+	mockT := new(MockTestingT)
+	m := new(Mock).Test(mockT)
+
+	u, err := url.Parse("https://test.com/foo/1234")
+	if err != nil {
+		t.Fatalf("unexpected error parsing request path: %v", err)
+	}
+
+	r := newRequest(m, http.MethodPut, u, []byte(`Hello World!`))
+	m.Requests = append(m.Requests, *r)
+
+	// Test
+	got := m.AssertRequested(
+		mockT,
+		http.MethodPut,
+		"https://test.com/foo/1234",
+		[]byte(`Hello World!`),
+	)
+
+	// Assertions
+	assert.True(t, got)
+}
+
+func TestMock_AssertNotRequested_FailToParsePath(t *testing.T) {
+	// Setup
+	mockT := new(MockTestingT)
+	m := new(Mock).Test(mockT)
+
+	var successfulAssertion int
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Did not expect to get here")
+		}
+		// Assertions
+		assert.Equal(t, "FailNow was called", r.(string))
+		assert.Equal(t, 1, mockT.errorfCount)
+		assert.Equal(t, 1, mockT.failNowCount)
+		assert.Zero(t, successfulAssertion)
+	}()
+
+	// Test
+	m.AssertNotRequested(mockT, http.MethodGet, "https://^.com", nil)
+	successfulAssertion++
+}
+
+func TestMock_AssertNotRequested_NoMatch(t *testing.T) {
+	// Setup
+	mockT := new(MockTestingT)
+	m := new(Mock).Test(mockT)
+
+	u, err := url.Parse("https://test.com/foo/1234")
+	if err != nil {
+		t.Fatalf("unexpected error parsing request path: %v", err)
+	}
+
+	r := newRequest(m, http.MethodPut, u, []byte(`Hello World!`))
+	m.Requests = append(m.Requests, *r)
+
+	// Test
+	got := m.AssertNotRequested(
+		mockT,
+		http.MethodPut,
+		"https://test.com/foo/1234",
+		[]byte(`Hello World!`),
+	)
+
+	// Assertions
+	assert.False(t, got)
+}
+
+func TestMock_AssertNotRequested(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+	}{
+		{
+			name:   "wrong-method",
+			method: http.MethodDelete,
+			path:   "https://test.com/foo/1234",
+			body:   nil,
+		},
+		{
+			name:   "wrong-path",
+			method: http.MethodGet,
+			path:   "https://test.com/foo/1234?limit=2",
+			body:   nil,
+		},
+		{
+			name:   "wrong-body",
+			method: http.MethodGet,
+			path:   "https://test.com/foo/1234?limit=2",
+			body:   []byte(`Hello World!`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			mockT := new(MockTestingT)
+			m := new(Mock).Test(mockT)
+
+			u, err := url.Parse(tt.path)
+			if err != nil {
+				t.Fatalf("unexpected error parsing request path: %v", err)
+			}
+
+			r := newRequest(m, tt.method, u, tt.body)
+			m.Requests = append(m.Requests, *r)
+
+			// Test
+			got := m.AssertNotRequested(
+				mockT,
+				http.MethodGet,
+				"https://test.com/foo/1234",
+				nil,
+			)
+
+			// Assertions
+			assert.True(t, got)
+		})
+	}
 }
 
 func TestMatchCandidate_isBetterMatchThan(t *testing.T) {

@@ -269,6 +269,17 @@ func readHTTPRequestBody(r *http.Request) ([]byte, error) {
 	return body, nil
 }
 
+func bodyFragment(body []byte) string {
+	o := fmtMissing
+	olen := len(body)
+	if olen > 1024 {
+		o = fmt.Sprintf("%s...", string(body[:1024]))
+	} else if olen > 0 {
+		o = string(body)
+	}
+	return o
+}
+
 func (r *Request) diffBody(other *http.Request) (string, int) {
 	var output string
 	var differences int
@@ -279,20 +290,11 @@ func (r *Request) diffBody(other *http.Request) (string, int) {
 		return err.Error(), 1
 	}
 
-	e := fmtMissing
+	e := bodyFragment(r.body)
 	elen := len(r.body)
-	if elen > 1024 {
-		e = fmt.Sprintf("%s...", string(r.body[:1024]))
-	} else if elen > 0 {
-		e = string(r.body)
-	}
-	a := fmtMissing
+	a := bodyFragment(otherBody)
 	alen := len(otherBody)
-	if alen > 1024 {
-		a = fmt.Sprintf("%s...", string(otherBody[:1024]))
-	} else if alen > 0 {
-		a = string(otherBody)
-	}
+
 	eq := fmtEqual
 	if elen == 0 && alen == 0 {
 		output = fmt.Sprintf("\t%d: PASS:  (0) %s == (0) %s\n", 2, e, a)
@@ -375,14 +377,9 @@ func (r *Request) String() string {
 		output = append(output, fmt.Sprintf("\tFragment: %s", e))
 	}
 
-	e = fmtMissing
+	e = bodyFragment(r.body)
 	elen := len(r.body)
-	if elen > 1024 {
-		e = fmt.Sprintf("(%d) %s...", len(r.body), string(r.body[:1024]))
-	} else if elen > 0 {
-		e = fmt.Sprintf("(%d) %s", len(r.body), string(r.body))
-	}
-	output = append(output, fmt.Sprintf("Body: %s", e))
+	output = append(output, fmt.Sprintf("Body: (%d) %s", elen, e))
 
 	return strings.Join(output, "\n")
 }
