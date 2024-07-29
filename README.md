@@ -12,37 +12,32 @@ import (
 )
 
 func TestSomething(t *testing.T) {
-    // Optionally use t for failing instead of panic
-    m := new(httpmock.Mock).Test(t)
-
-    // Setup test server to log requests anre return expected responses
-    ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        response := m.Requested(r)
-        if _, err := response.Write(w); err != nil {
-            t.Fatalf("Failed to write test-server response: %v", err)
-        }
-    })
+    // Setup default test server and handler to log requests and return expected responses
+    // You may also create your own test server, handler, and mock to manage this
+    ts := httpmock.NewServer()
     defer ts.Close()
+    // Set as recoverable to log panics rather than propagate out from the server
+    // goroutine to the parent process
+    ts.Recoverable()
 
     // Configure request mocks
-    m.On(
+    s.Mock.On(
         http.MethodPatch,
         fmt.Sprintf("%s/foo/1234?preview=true", server.URL),
-        []byte{`{"bar": "baz"}`},
-    ).Respond(
-        http.StatusOK,
-        []byte(`Success!`),
-    ).Once()
+        []byte{`{"bar": "baz"}`}).
+    RespondOK([]byte(`Success!`)).
+    Once()
 
-    // Application code
-    c := server.Client()
-    res, err := c.Patch("/foo/1234?preview=true", io.NopCloser(strings.NewReader(`Success!`)))
+    // Test application code
+    c := ts.Client()
+    res, err := c.Patch("/foo/1234?preview=true", io.NopCloser(strings.NewReader(`{"bar": "baz"}`)))
 
     // Assert application code
     ...
 
-    // Assert httpmock
-    ...
+    // Assert httpmock expectations
+    s.Mock.AssertExpectations(t)
+    s.Mock.AssertNumberOfRequests(t, http.MethodPatch, "/foo/1234", 1)
 }
 ```
 
@@ -56,7 +51,7 @@ go get github.com/shawalli/httpmock
 
 ## Todo
 
-- [ ] Extend `httptest.Server` to provide a single implementation
+- [x] Extend `httptest.Server` to provide a single implementation
 - [ ] Request header matching
 - [ ] Request URL matcher
 

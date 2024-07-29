@@ -77,15 +77,7 @@ func (m *Mock) requests() []Request {
 func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
 	var expectedRequest *Request
 	for i, er := range m.ExpectedRequests {
-		if _, d := er.diffMethod(actual); d != 0 {
-			continue
-		}
-
-		if _, d := er.diffURL(actual); d != 0 {
-			continue
-		}
-
-		if _, d := er.diffBody(actual); d != 0 {
+		if _, d := er.diff(actual); d != 0 {
 			continue
 		}
 
@@ -126,7 +118,6 @@ func (m *Mock) Requested(r *http.Request) *Response {
 	}
 
 	found, request := m.findExpectedRequest(r)
-
 	if found < 0 {
 		// expected request not found, but has already been requested with repeatable times
 		if request != nil {
@@ -165,9 +156,13 @@ func (m *Mock) Requested(r *http.Request) *Response {
 	}
 	request.totalRequests++
 
-	// add the request
-	nr := newRequest(m, r.Method, r.URL, requestBody)
-	m.Requests = append(m.Requests, *nr)
+	// add clean request to received request list
+	newRequest := newRequest(m, r.Method, r.URL, requestBody)
+	if request.response != nil {
+		newResponse := *request.response
+		newRequest.response = &newResponse
+	}
+	m.Requests = append(m.Requests, *newRequest)
 	m.mutex.Unlock()
 
 	return request.response
