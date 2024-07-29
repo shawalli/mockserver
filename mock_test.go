@@ -11,10 +11,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type badReader struct{}
+// MockTestingT mocks a test struct
+// Borrowed from testify/mock tests
+type MockTestingT struct {
+	logfCount, errorfCount, failNowCount int
+}
 
-func (br *badReader) Read(_ []byte) (n int, err error) {
-	return 0, io.ErrUnexpectedEOF
+const mockTestingTFailNowCalled = "FailNow was called"
+
+func (m *MockTestingT) Logf(string, ...interface{}) {
+	m.logfCount++
+}
+
+func (m *MockTestingT) Errorf(string, ...interface{}) {
+	m.errorfCount++
+}
+
+func (m *MockTestingT) FailNow() {
+	m.failNowCount++
+
+	// this function should panic now to stop the execution as expected
+	panic(mockTestingTFailNowCalled)
 }
 
 func mustNewRequest(r *http.Request, err error) *http.Request {
@@ -261,29 +278,6 @@ func TestMock_findClosestRequest(t *testing.T) {
 			assert.Equal(t, tt.wantMismatch, gotMismatch != "")
 		})
 	}
-}
-
-// MockTestingT mocks a test struct
-// Borrowed from testify/mock tests
-type MockTestingT struct {
-	logfCount, errorfCount, failNowCount int
-}
-
-const mockTestingTFailNowCalled = "FailNow was called"
-
-func (m *MockTestingT) Logf(string, ...interface{}) {
-	m.logfCount++
-}
-
-func (m *MockTestingT) Errorf(string, ...interface{}) {
-	m.errorfCount++
-}
-
-func (m *MockTestingT) FailNow() {
-	m.failNowCount++
-
-	// this function should panic now to stop the execution as expected
-	panic(mockTestingTFailNowCalled)
 }
 
 func TestMock_Requested_FailToReadRequestBody(t *testing.T) {

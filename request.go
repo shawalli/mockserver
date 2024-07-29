@@ -261,7 +261,7 @@ func readHTTPRequestBody(r *http.Request) ([]byte, error) {
 	// Read request body and reset it for the next comparison
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, ErrReadBody
+		return nil, fmt.Errorf("%w: %v", ErrReadBody, err)
 	}
 	r.Body.Close()
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
@@ -339,49 +339,48 @@ func (r *Request) String() string {
 	}
 	output = append(output, fmt.Sprintf("Method: %s", e))
 
-	e = r.url.String()
-	if e == "" {
+	if e = r.url.String(); e == "" {
 		output = append(output, fmt.Sprintf("URL: %s", fmtMissing))
-		return strings.Join(output, "\n")
-	}
-	output = append(output, fmt.Sprintf("URL: %s", e))
+	} else {
+		output = append(output, fmt.Sprintf("URL: %s", e))
 
-	e, eok := diffMissing(r.url.Scheme)
-	if !eok {
-		e = fmtMissing
-	}
-	output = append(output, fmt.Sprintf("\tScheme: %s", e))
+		e, eok := diffMissing(r.url.Scheme)
+		if !eok {
+			e = fmtMissing
+		}
+		output = append(output, fmt.Sprintf("\tScheme: %s", e))
 
-	e, eok = diffMissing(r.url.Host)
-	if !eok {
-		e = fmtMissing
-	}
-	output = append(output, fmt.Sprintf("\tHost: %s", e))
+		e, eok = diffMissing(r.url.Host)
+		if !eok {
+			e = fmtMissing
+		}
+		output = append(output, fmt.Sprintf("\tHost: %s", e))
 
-	e, eok = diffMissing(r.url.Path)
-	if !eok {
-		e = fmtMissing
-	}
-	output = append(output, fmt.Sprintf("\tPath: %s", e))
+		e, eok = diffMissing(r.url.Path)
+		if !eok {
+			e = fmtMissing
+		}
+		output = append(output, fmt.Sprintf("\tPath: %s", e))
 
-	e, eok = diffMissing(r.url.RawQuery)
-	if !eok {
-		e = fmtMissing
-	}
-	output = append(output, fmt.Sprintf("\tQuery: %s", e))
+		e, eok = diffMissing(r.url.RawQuery)
+		if !eok {
+			e = fmtMissing
+		}
+		output = append(output, fmt.Sprintf("\tQuery: %s", e))
 
-	e, eok = diffMissing(r.url.Fragment)
-	if !eok {
-		e = fmtMissing
+		e, eok = diffMissing(r.url.Fragment)
+		if !eok {
+			e = fmtMissing
+		}
+		output = append(output, fmt.Sprintf("\tFragment: %s", e))
 	}
-	output = append(output, fmt.Sprintf("\tFragment: %s", e))
 
 	e = fmtMissing
 	elen := len(r.body)
 	if elen > 1024 {
-		e = fmt.Sprintf("%s...", string(r.body[:1024]))
+		e = fmt.Sprintf("(%d) %s...", len(r.body), string(r.body[:1024]))
 	} else if elen > 0 {
-		e = string(r.body)
+		e = fmt.Sprintf("(%d) %s", len(r.body), string(r.body))
 	}
 	output = append(output, fmt.Sprintf("Body: %s", e))
 

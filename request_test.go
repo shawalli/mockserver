@@ -1,6 +1,7 @@
 package httpmock
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/url"
@@ -9,6 +10,32 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+var testLongBody = []byte(`
+0000000000000000000000000000000000000000000000000000000000000000
+1111111111111111111111111111111111111111111111111111111111111111
+2222222222222222222222222222222222222222222222222222222222222222
+3333333333333333333333333333333333333333333333333333333333333333
+4444444444444444444444444444444444444444444444444444444444444444
+5555555555555555555555555555555555555555555555555555555555555555
+6666666666666666666666666666666666666666666666666666666666666666
+7777777777777777777777777777777777777777777777777777777777777777
+8888888888888888888888888888888888888888888888888888888888888888
+9999999999999999999999999999999999999999999999999999999999999999
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+Now I am too long
+`)
+
+type badReader struct{}
+
+func (br *badReader) Read(_ []byte) (n int, err error) {
+	return 0, io.ErrUnexpectedEOF
+}
 
 func Test_newRequest(t *testing.T) {
 	tests := []struct {
@@ -180,6 +207,23 @@ func TestRequest_RespondNoContent(t *testing.T) {
 	}
 	assert.Equal(t, want, got)
 	assert.Equal(t, got, r.response)
+}
+
+func TestRequest_On(t *testing.T) {
+	// Setup
+	m := new(Mock)
+	r := m.On(http.MethodGet, "test.com/foo/1234", nil)
+
+	// Test
+	got := r.On(http.MethodPut, "test.com/foo", []byte(`{"foo": "bar"}`))
+
+	// Assertions
+	assert.NotNil(t, got)
+	wantExpectedRequests := []*Request{
+		r,
+		got,
+	}
+	assert.Equal(t, wantExpectedRequests, m.ExpectedRequests)
 }
 
 func TestRequest_Times(t *testing.T) {
@@ -501,6 +545,20 @@ func TestRequest_diffURL(t *testing.T) {
 	}
 }
 
+func TestRequest_diffBody_FailToReadBody(t *testing.T) {
+	// Setup
+	r := &Request{}
+
+	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
+
+	// Test
+	gotOutput, gotDifferences := r.diffBody(test)
+
+	// Assertions
+	assert.Contains(t, gotOutput, ErrReadBody.Error())
+	assert.Equal(t, 1, gotDifferences)
+}
+
 func TestRequest_diffBody(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -530,6 +588,24 @@ func TestRequest_diffBody(t *testing.T) {
 			name:            "missing-both-bodies",
 			request:         &Request{},
 			other:           &http.Request{Body: http.NoBody},
+			wantDifferences: false,
+		},
+		{
+			name:            "long-request-body",
+			request:         &Request{body: testLongBody},
+			other:           &http.Request{Body: io.NopCloser(strings.NewReader("Hi"))},
+			wantDifferences: true,
+		},
+		{
+			name:            "long-other-body",
+			request:         &Request{},
+			other:           &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
+			wantDifferences: true,
+		},
+		{
+			name:            "long-both-bodies",
+			request:         &Request{body: testLongBody},
+			other:           &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
 			wantDifferences: false,
 		},
 	}
@@ -676,6 +752,261 @@ func TestRequest_diff(t *testing.T) {
 			// Assertions
 			assert.Equal(t, tt.wantDifferences, gotDifferennces)
 			assert.NotEmpty(t, got)
+		})
+	}
+}
+
+func TestRequest_String(t *testing.T) {
+	tests := []struct {
+		name    string
+		request *Request
+		want    string
+	}{
+		{
+			name:    "missing-everything",
+			request: &Request{url: &url.URL{}},
+			want: `
+Method: (Missing)
+URL: (Missing)
+Body: (Missing)`,
+		},
+		{
+			name: "missing-method",
+			request: &Request{
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body: []byte(`Hello World!`),
+			},
+			want: `
+Method: (Missing)
+URL: https://test.com/foo?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (12) Hello World!`,
+		},
+		{
+			name: "anymethod",
+			request: &Request{
+				method: AnyMethod,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body: []byte(`Hello World!`),
+			},
+			want: `
+Method: (AnyMethod)
+URL: https://test.com/foo?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (12) Hello World!`,
+		},
+		{
+			name: "missing-url",
+			request: &Request{
+				method: http.MethodGet,
+				url:    &url.URL{},
+				body:   []byte(`Hello World!`),
+			},
+			want: `
+Method: GET
+URL: (Missing)
+Body: (12) Hello World!`,
+		},
+		{
+			name: "missing-url-scheme",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body: []byte(`Hello World!`),
+			},
+			want: `
+Method: GET
+URL: //test.com/foo?limit=1#back
+	Scheme: (Missing)
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (12) Hello World!`,
+		},
+		{
+			name: "missing-url-host",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body: []byte(`Hello World!`),
+			},
+			want: `
+Method: GET
+URL: https:///foo?limit=1#back
+	Scheme: https
+	Host: (Missing)
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (12) Hello World!`,
+		},
+		{
+			name: "missing-url-path",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body: []byte(`Hello World!`),
+			},
+			want: `
+Method: GET
+URL: https://test.com?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: (Missing)
+	Query: limit=1
+	Fragment: back
+Body: (12) Hello World!`,
+		},
+		{
+			name: "missing-url-query",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					Fragment: "back",
+				},
+				body: []byte(`Hello World!`),
+			},
+			want: `
+Method: GET
+URL: https://test.com/foo#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: (Missing)
+	Fragment: back
+Body: (12) Hello World!`,
+		},
+		{
+			name: "missing-url-fragment",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+				},
+				body: []byte(`Hello World!`),
+			},
+			want: `
+Method: GET
+URL: https://test.com/foo?limit=1
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: (Missing)
+Body: (12) Hello World!`,
+		},
+		{
+			name: "missing-body",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+			},
+			want: `
+Method: GET
+URL: https://test.com/foo?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (Missing)`,
+		},
+		{
+			name: "missing-body",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body: testLongBody[1:],
+			},
+			want: `
+Method: GET
+URL: https://test.com/foo?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (1058) 0000000000000000000000000000000000000000000000000000000000000000
+1111111111111111111111111111111111111111111111111111111111111111
+2222222222222222222222222222222222222222222222222222222222222222
+3333333333333333333333333333333333333333333333333333333333333333
+4444444444444444444444444444444444444444444444444444444444444444
+5555555555555555555555555555555555555555555555555555555555555555
+6666666666666666666666666666666666666666666666666666666666666666
+7777777777777777777777777777777777777777777777777777777777777777
+8888888888888888888888888888888888888888888888888888888888888888
+9999999999999999999999999999999999999999999999999999999999999999
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffff...`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test
+			got := tt.request.String()
+			got = "\n" + got
+
+			// Assertions
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
