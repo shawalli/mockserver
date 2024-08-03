@@ -13,20 +13,32 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// tHelper is a minimal interface that expects a type to satisfy the
+// testing.TB.Helper method.
 type tHelper interface {
 	Helper()
 }
 
+// Mock is the workhorse used to track activity of a server's request.
+// For an example of its usage, refer to the README.
 type Mock struct {
+	// Represents the requests that are expected to be received.
 	ExpectedRequests []*Request
 
+	// Holds the requests that were made to a mocked handler or server.
 	Requests []Request
 
+	// test is an optional variable that holds the test struct, to be used when
+	// an invalid mock request was made.
 	test mock.TestingT
 
 	mutex sync.Mutex
 }
 
+// On starts a description of an expectation of the specified Request being
+// received.
+//
+//	Mock.On(http.MethodDelete, "/some/path/1234")
 func (m *Mock) On(method string, URL string, body []byte) *Request {
 	parsedURL, err := url.Parse(URL)
 	if err != nil {
@@ -47,6 +59,7 @@ func (m *Mock) On(method string, URL string, body []byte) *Request {
 	return r
 }
 
+// Test sets the test struct variable of the mock object.
 func (m *Mock) Test(t mock.TestingT) *Mock {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -54,6 +67,9 @@ func (m *Mock) Test(t mock.TestingT) *Mock {
 	return m
 }
 
+// fail the current test with the given formatted format and args. In the case
+// that a testing object was defined, it uses the test APIs for failing a test;
+// otherwise, it uses panic.
 func (m *Mock) fail(format string, args ...interface{}) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -65,15 +81,20 @@ func (m *Mock) fail(format string, args ...interface{}) {
 	m.test.FailNow()
 }
 
+// expectedRequests provides a safe mechanism for viewing and modifying the list
+// of expected Requests.
 func (m *Mock) expectedRequests() []*Request {
 	return append([]*Request{}, m.ExpectedRequests...)
 }
 
+// expectedRequests provides a safe mechanism for viewing and modifying the list
+// of received Requests.
 func (m *Mock) requests() []Request {
 	return append([]Request{}, m.Requests...)
 }
 
-// https://goplay.tools/snippet/_1Iu9dcSHKt
+// findExpectedRequest finds the first Request that exactly matches a received
+// request and does not have its repeatability disabled.
 func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
 	var expectedRequest *Request
 	for i, er := range m.ExpectedRequests {
@@ -90,6 +111,12 @@ func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
 	return -1, expectedRequest
 }
 
+// findClosestRequest finds the first request that most closely matches a
+// received request.
+//
+// This method should only be used if there is no exact match of a received
+// request to the list of expected Requests. If a closest match is found, it is
+// returned, along with a formatted string of the differences.
 func (m *Mock) findClosestRequest(other *http.Request) (*Request, string) {
 	var bestMatch matchCandidate
 
@@ -108,6 +135,9 @@ func (m *Mock) findClosestRequest(other *http.Request) (*Request, string) {
 	return bestMatch.request, bestMatch.mismatch
 }
 
+// Requested tells the mock that a request has been received and gets a response
+// to return. Panics if the request is unexpected (i.e. not preceded by
+// appropriate .On .Respond() calls)
 func (m *Mock) Requested(r *http.Request) *Response {
 	m.mutex.Lock()
 
@@ -119,12 +149,17 @@ func (m *Mock) Requested(r *http.Request) *Response {
 
 	found, request := m.findExpectedRequest(r)
 	if found < 0 {
-		// expected request not found, but has already been requested with repeatable times
+		// Expected request found, but has already been requested with repeatable times
 		if request != nil {
 			m.mutex.Unlock()
 			m.fail("\nassert: httpmock: The request has been called over %d times.\n\tEither do one more Mock.On(%q, %q), or remove extra request.", request.totalRequests, r.Method, r.URL.String())
 		}
-
+		// We have to fail here - because we don't know what to do for the
+		// response. This is becuase:
+		//
+		//	a) This is a totally unexpected request
+		//	b) The arguments are not what was expected, or
+		//	c) The deveoper has forgotten to add an accompanying On...Respond pair
 		closestRequest, mismatch := m.findClosestRequest(r)
 		m.mutex.Unlock()
 
@@ -156,7 +191,7 @@ func (m *Mock) Requested(r *http.Request) *Response {
 	}
 	request.totalRequests++
 
-	// add clean request to received request list
+	// Add a clean request to received request list
 	newRequest := newRequest(m, r.Method, r.URL, requestBody)
 	if request.response != nil {
 		newResponse := *request.response
@@ -168,12 +203,21 @@ func (m *Mock) Requested(r *http.Request) *Response {
 	return request.response
 }
 
+// matchCandidate holds details about possible Request matches for a received
+// request.
 type matchCandidate struct {
-	request   *Request
-	mismatch  string
+	// Matched Request
+	request *Request
+
+	// Formatted string showing differences
+	mismatch string
+
+	// Number of differences between match candidate and received request.
 	diffCount int
 }
 
+// isBetterMatchThan compares two matchCandidates to determine whether the
+// referenced candidate is better than the other candidate.
 func (mc matchCandidate) isBetterMatchThan(other matchCandidate) bool {
 	if mc.request == nil {
 		return false
@@ -194,6 +238,8 @@ func (mc matchCandidate) isBetterMatchThan(other matchCandidate) bool {
 	return false
 }
 
+// AssertExpectations assert that everything specified with On and Respond was
+// in fact requested as expected. Requests may have occurred in any order.
 func (m *Mock) AssertExpectations(t mock.TestingT) bool {
 	if th, ok := t.(tHelper); ok {
 		th.Helper()
@@ -202,6 +248,7 @@ func (m *Mock) AssertExpectations(t mock.TestingT) bool {
 	defer m.mutex.Unlock()
 	var failedExpectations int
 
+	// Iterate through each expectation
 	expectedRequests := m.expectedRequests()
 	for _, expectedRequest := range expectedRequests {
 		if satisfied, reason := m.checkExpectation(expectedRequest); !satisfied {
@@ -217,6 +264,13 @@ func (m *Mock) AssertExpectations(t mock.TestingT) bool {
 	return failedExpectations == 0
 }
 
+// AssertNumberOfRequests asserts that the request was made expectedRequests times.
+//
+// This assertion behaves a bit differently than other assertions. There are a few
+// parts of the request that are ignored when calculating, including:
+//   - URL username/password information
+//   - URL query parameters
+//   - URL fragment
 func (m *Mock) AssertNumberOfRequests(t mock.TestingT, method string, path string, expectedRequests int) bool {
 	if th, ok := t.(tHelper); ok {
 		th.Helper()
@@ -256,6 +310,7 @@ func (m *Mock) AssertNumberOfRequests(t mock.TestingT, method string, path strin
 	return assert.Equal(t, expectedRequests, actualRequests)
 }
 
+// AssertRequested asserts that the request was received.
 func (m *Mock) AssertRequested(t mock.TestingT, method string, path string, body []byte) bool {
 	if th, ok := t.(tHelper); ok {
 		th.Helper()
@@ -281,6 +336,7 @@ func (m *Mock) AssertRequested(t mock.TestingT, method string, path string, body
 	return true
 }
 
+// AssertRequested asserts that the request was not received.
 func (m *Mock) AssertNotRequested(t mock.TestingT, method string, path string, body []byte) bool {
 	if th, ok := t.(tHelper); ok {
 		th.Helper()
@@ -306,6 +362,8 @@ func (m *Mock) AssertNotRequested(t mock.TestingT, method string, path string, b
 	return true
 }
 
+// checkExpectation checks whether an expected Request was received, and
+// whether it received the expected number of times.
 func (m *Mock) checkExpectation(request *Request) (bool, string) {
 	if (!m.checkWasRequested(request.method, request.url, request.body) && request.totalRequests == 0) || (request.repeatability > 0) {
 		return false, fmt.Sprintf("FAIL:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), trimBody(request.body))
@@ -313,6 +371,7 @@ func (m *Mock) checkExpectation(request *Request) (bool, string) {
 	return true, fmt.Sprintf("PASS:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), trimBody(request.body))
 }
 
+// checkWasRequested checks whether a set of request parameters was received.
 func (m *Mock) checkWasRequested(method string, URL *url.URL, body []byte) bool {
 	tempHTTPRequest := &http.Request{
 		Method: method,

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// badResponseWriter implements the http.ResponseWriter interface, but always fails to write.
 type badResponseWriter struct{}
 
 func (brw *badResponseWriter) Header() http.Header               { return http.Header{} }

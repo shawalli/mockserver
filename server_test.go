@@ -104,7 +104,7 @@ func TestServer_handler_AssertNotRequested(t *testing.T) {
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(`Hello World!`))
 
-	// Assertions
+	// Test and Assertions
 	s.Mock.AssertNotRequested(t, http.MethodDelete, fmt.Sprintf("%s/foo/1234", s.URL), nil)
 }
 

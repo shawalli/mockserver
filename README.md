@@ -41,6 +41,11 @@ func TestSomething(t *testing.T) {
 }
 ```
 
+You can also use `Mock` directly and implement your own test server. To do so,
+you should wire up your handler so that the request is passed to
+`Mock.Requested(r)`, and respond using the returned `Response`'s `Write(w)`
+method.
+
 ## Installation
 
 To install `httpmock`, use `go get`:
@@ -52,8 +57,8 @@ go get github.com/shawalli/httpmock
 ## Todo
 
 - [x] Extend `httptest.Server` to provide a single implementation
-- [ ] Request header matching
 - [ ] Request URL matcher
+- [ ] Request header matching
 
 ## License
 

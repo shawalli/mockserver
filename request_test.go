@@ -31,6 +31,7 @@ ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 Now I am too long
 `)
 
+// badReader implements the io.Reader interface, but always fails to read.
 type badReader struct{}
 
 func (br *badReader) Read(_ []byte) (n int, err error) {

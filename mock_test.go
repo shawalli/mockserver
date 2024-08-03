@@ -18,8 +18,6 @@ type MockTestingT struct {
 	logfCount, errorfCount, failNowCount int
 }
 
-const mockTestingTFailNowCalled = "FailNow was called"
-
 func (m *MockTestingT) Logf(string, ...interface{}) {
 	m.logfCount++
 }
@@ -28,15 +26,21 @@ func (m *MockTestingT) Errorf(string, ...interface{}) {
 	m.errorfCount++
 }
 
+// FailNow mocks the FailNow call.
+// It panics in order to mimic the FailNow behavior in the sense that
+// the execution stops.
 func (m *MockTestingT) FailNow() {
 	m.failNowCount++
 
 	// this function should panic now to stop the execution as expected
-	panic(mockTestingTFailNowCalled)
+	panic("FailNow was called")
 }
 
 func (m *MockTestingT) Helper() {}
 
+// mustNewRequest is a convenience test helper that wraps a call to
+// http.NewRequest() and panics if an error is returned. It is only
+// intended to be used during test setup.
 func mustNewRequest(r *http.Request, err error) *http.Request {
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error making request: %v", err))
@@ -63,7 +67,7 @@ func TestMock_fail_NoTestingT(t *testing.T) {
 	m.fail("I failed...%s %v", "badly!", errors.New("some error"))
 }
 
-func TestMock_DoBadURL(t *testing.T) {
+func TestMock_On_BadURL(t *testing.T) {
 	// Setup
 	var successfulRequestedCall int
 
@@ -86,7 +90,7 @@ func TestMock_DoBadURL(t *testing.T) {
 	successfulRequestedCall++
 }
 
-func TestMock_Do(t *testing.T) {
+func TestMock_On(t *testing.T) {
 	// Setup
 	m := new(Mock)
 
@@ -296,7 +300,7 @@ func TestMock_findClosestRequest(t *testing.T) {
 			// Test
 			gotRequest, gotMismatch := m.findClosestRequest(tt.test)
 
-			// Assert
+			// Assertions
 			if tt.wantRequest != nil {
 				tt.wantRequest.parent = m
 			}

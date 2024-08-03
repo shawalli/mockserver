@@ -28,16 +28,30 @@ var (
 	fmtEqual    = "=="
 )
 
+// Request represents a HTTP request and is used for setting expectations,
+// as well as recording activity.
 type Request struct {
 	parent *Mock
 
+	// The HTTP method that was or will be requested.
 	method string
-	url    *url.URL
-	body   []byte
 
+	// The URL that was or will be requested, including query parameters and
+	// fragment.
+	url *url.URL
+
+	// The body that was or will be requested.
+	body []byte
+
+	// Holds the parts of the response that should be returned when setting
+	// this request is received.
 	response *Response
 
+	// The number of times to return the response when setting expectations.
+	// 0 means to always return the value.
 	repeatability int
+
+	// Amount of times this request has been received.
 	totalRequests int
 }
 
@@ -50,14 +64,19 @@ func newRequest(parent *Mock, method string, URL *url.URL, body []byte) *Request
 	}
 }
 
+// lock is a convenience method to lock the parent Mock's mutex.
 func (r *Request) lock() {
 	r.parent.mutex.Lock()
 }
 
+// unlock is a convenience method to unlock the parent Mock's mutex.
 func (r *Request) unlock() {
 	r.parent.mutex.Unlock()
 }
 
+// Respond specifies the response arguments for the expectation.
+//
+//	Mock.On(http.GetMethod, "/some/path").Respond(http.StatusInternalServerError, nil)
 func (r *Request) Respond(statusCode int, body []byte) *Response {
 	resp := newResponse(
 		r,
@@ -73,22 +92,39 @@ func (r *Request) Respond(statusCode int, body []byte) *Response {
 	return resp
 }
 
+// RespondOK is a convenience method that sets the status code as 200 and
+// the provided body.
+//
+//	Mock.On(http.GetMethod, "/some/path").RespondOK([]byte(`{"foo", "bar"}`)])
 func (r *Request) RespondOK(body []byte) *Response {
 	return r.Respond(http.StatusOK, body)
 }
 
+// RespondNoContent is a convenience method that sets the status code as 204.
+//
+//	Mock.On(http.MethodDelete, "/some/path/1234").RespondNoContent()
 func (r *Request) RespondNoContent() *Response {
 	return r.Respond(http.StatusNoContent, nil)
 }
 
+// Once indicates that the mock should only return the response once.
+//
+//	Mock.On(http.MethodDelete, "/some/path/1234").Once()
 func (r *Request) Once() *Request {
 	return r.Times(1)
 }
 
+// Twice indicates that the mock should only return the response twice.
+//
+//	Mock.On(http.MethodDelete, "/some/path/1234").Twice()
 func (r *Request) Twice() *Request {
 	return r.Times(2)
 }
 
+// Times indicates that the mock should only return the indicated number
+// of times.
+//
+//	Mock.On(http.MethodDelete, "/some/path/1234").Times(5)
 func (r *Request) Times(i int) *Request {
 	r.lock()
 	defer r.unlock()
@@ -97,6 +133,8 @@ func (r *Request) Times(i int) *Request {
 	return r
 }
 
+// readHTTPRequestBody reads the body of a HTTP request and resets the
+// request's body so that it may be read again afterward.
 func readHTTPRequestBody(r *http.Request) ([]byte, error) {
 	// Read request body and reset it for the next comparison
 	body, err := io.ReadAll(r.Body)
@@ -109,6 +147,8 @@ func readHTTPRequestBody(r *http.Request) ([]byte, error) {
 	return body, nil
 }
 
+// diffMissing is a convenience function to provide a standard string if a
+// string is found to be empty.
 func diffMissing(v string) (string, bool) {
 	if v == "" {
 		return fmtMissing, false
@@ -116,6 +156,9 @@ func diffMissing(v string) (string, bool) {
 	return v, true
 }
 
+// diffMethod detects differences between a Request's HTTP method and a HTTP
+// request's HTTP method. It responds with a formatted string of the difference
+// and the calculated number of differences.
 func (r *Request) diffMethod(other *http.Request) (string, int) {
 	var output string
 	var differences int
@@ -142,9 +185,14 @@ func (r *Request) diffMethod(other *http.Request) (string, int) {
 	return output, differences
 }
 
-// Query logic:
-// - if request query is empty, don't compare queries
-// - if request query is not empty, only compare keys found in request query
+// diffQuery detects differences between a Request's query parameters and a
+// HTTP request's query parameters. It responds with a formatted string of the
+// differences and the calculated number of differences.
+//
+// Query Logic:
+//   - If Request query is empty, don't compare query parameters at all
+//   - Otherwise, only compare query parameters found in Request; ignore query
+//     parameters in HTTP request that are not enumerated in the Request.
 func (r *Request) diffQuery(other *http.Request) (string, int) {
 	var output string
 	var differences int
@@ -189,6 +237,17 @@ func (r *Request) diffQuery(other *http.Request) (string, int) {
 	return output, differences
 }
 
+// diffURL detects differences between a Request's URL and an
+// HTTP request's URL. It responds with a formatted string of the
+// differences and the calculated number of differences.
+//
+// Ignored URL Fields:
+//   - .Opaque
+//   - .User
+//   - .RawPath
+//   - .OmitHost
+//   - .ForceQuery
+//   - .RawFragment
 func (r *Request) diffURL(other *http.Request) (string, int) {
 	var output string
 	var differences int
@@ -266,6 +325,7 @@ func (r *Request) diffURL(other *http.Request) (string, int) {
 	return output, differences
 }
 
+// trimBody concatenates a body larger than 1024 bytes and appends an ellipses.
 func trimBody(body []byte) string {
 	o := fmtMissing
 	olen := len(body)
@@ -277,11 +337,13 @@ func trimBody(body []byte) string {
 	return o
 }
 
+// diffBody detects differences between a Request's body and a HTTP request's
+// body. It responds with a formatted string of the differences and the
+// calculated number of differences.
 func (r *Request) diffBody(other *http.Request) (string, int) {
 	var output string
 	var differences int
 
-	// Read request body and reset it for the next comparison
 	otherBody, err := readHTTPRequestBody(other)
 	if err != nil {
 		return err.Error(), 1
@@ -308,6 +370,9 @@ func (r *Request) diffBody(other *http.Request) (string, int) {
 	return output, differences
 }
 
+// diff detects differences between a Request and a HTTP request. It responds
+// with a formatted string of the differences and the calculated number of
+// differences.
 func (r *Request) diff(other *http.Request) (string, int) {
 	output := "\n"
 	var differences int
@@ -327,6 +392,7 @@ func (r *Request) diff(other *http.Request) (string, int) {
 	return output, differences
 }
 
+// String computes a formatted string representing a Request.
 func (r *Request) String() string {
 	var output []string
 
