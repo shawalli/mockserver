@@ -18,8 +18,10 @@ var (
 
 	AnyMethod = "mock.AnyMethod"
 
-	cmpoptCmpUnorderedSlices              = cmpopts.SortSlices(func(a, b string) bool { return a < b })
-	cmpoptIgnoreURLUnexportedStructFields = cmpopts.IgnoreUnexported(url.URL{})
+	cmpoptSortMaps                  = cmpopts.SortMaps(func(a, b string) bool { return a < b })
+	cmpoptSortSlices                = cmpopts.SortSlices(func(a, b string) bool { return a < b })
+	cmpoptIgnoreURLRawQuery         = cmpopts.IgnoreFields(url.URL{}, "RawQuery")
+	cmpoptIgnoreURLUnexportedFields = cmpopts.IgnoreUnexported(url.URL{})
 
 	fmtMissing  = "(Missing)"
 	fmtNotEqual = "!="
@@ -95,8 +97,16 @@ func (r *Request) Times(i int) *Request {
 	return r
 }
 
-func (r *Request) On(method string, path string, body []byte) *Request {
-	return r.parent.On(method, path, body)
+func readHTTPRequestBody(r *http.Request) ([]byte, error) {
+	// Read request body and reset it for the next comparison
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrReadBody, err)
+	}
+	r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	return body, nil
 }
 
 func diffMissing(v string) (string, bool) {
@@ -169,7 +179,7 @@ func (r *Request) diffQuery(other *http.Request) (string, int) {
 	a = fmt.Sprintf("%s%s", a, a2)
 
 	eq := fmtEqual
-	if !cmp.Equal(rQuery, oFilteredQuery, cmpoptCmpUnorderedSlices) {
+	if !cmp.Equal(rQuery, oFilteredQuery, cmpoptSortMaps, cmpoptSortSlices) {
 		eq = fmtNotEqual
 		differences++
 	}
@@ -235,8 +245,7 @@ func (r *Request) diffURL(other *http.Request) (string, int) {
 		fragmentFmt = fmt.Sprintf("\t\t  Fragment:  %s %s %s\n", a, eq, e)
 	}
 
-	ignoreURLQueryParams := cmpopts.IgnoreFields(url.URL{}, "RawQuery")
-	if cmp.Equal(*r.url, *other.URL, ignoreURLQueryParams, cmpoptIgnoreURLUnexportedStructFields) && queryDifferences == 0 {
+	if cmp.Equal(*r.url, *other.URL, cmpoptIgnoreURLRawQuery, cmpoptIgnoreURLUnexportedFields) && queryDifferences == 0 {
 		output = fmt.Sprintf("\t%d: PASS:  %s == %s\n", 1, other.URL.String(), r.url.String())
 		output += schemeFmt
 		output += hostFmt
@@ -257,19 +266,7 @@ func (r *Request) diffURL(other *http.Request) (string, int) {
 	return output, differences
 }
 
-func readHTTPRequestBody(r *http.Request) ([]byte, error) {
-	// Read request body and reset it for the next comparison
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrReadBody, err)
-	}
-	r.Body.Close()
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-	return body, nil
-}
-
-func bodyFragment(body []byte) string {
+func trimBody(body []byte) string {
 	o := fmtMissing
 	olen := len(body)
 	if olen > 1024 {
@@ -290,9 +287,9 @@ func (r *Request) diffBody(other *http.Request) (string, int) {
 		return err.Error(), 1
 	}
 
-	e := bodyFragment(r.body)
+	e := trimBody(r.body)
 	elen := len(r.body)
-	a := bodyFragment(otherBody)
+	a := trimBody(otherBody)
 	alen := len(otherBody)
 
 	eq := fmtEqual
@@ -377,7 +374,7 @@ func (r *Request) String() string {
 		output = append(output, fmt.Sprintf("\tFragment: %s", e))
 	}
 
-	e = bodyFragment(r.body)
+	e = trimBody(r.body)
 	elen := len(r.body)
 	output = append(output, fmt.Sprintf("Body: (%d) %s", elen, e))
 

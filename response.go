@@ -41,16 +41,20 @@ func (r *Response) Header(key string, value string, values ...string) *Response 
 	return r
 }
 
-func (r *Response) Times(i int) *Request {
-	return r.parent.Times(i)
-}
-
 func (r *Response) Once() *Request {
 	return r.parent.Once()
 }
 
 func (r *Response) Twice() *Request {
 	return r.parent.Twice()
+}
+
+func (r *Response) Times(i int) *Request {
+	return r.parent.Times(i)
+}
+
+func (r *Response) On(method string, path string, body []byte) *Request {
+	return r.parent.parent.On(method, path, body)
 }
 
 func (r *Response) Write(w http.ResponseWriter) (int, error) {

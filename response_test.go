@@ -100,18 +100,6 @@ func TestResponse_Header(t *testing.T) {
 	}
 }
 
-func TestResponse_Times(t *testing.T) {
-	// Setup
-	req := &Request{parent: new(Mock).Test(t)}
-	resp := Response{parent: req}
-
-	// Test
-	resp.Times(4)
-
-	// Assertions
-	assert.Equal(t, 4, req.repeatability)
-}
-
 func TestResponse_Once(t *testing.T) {
 	// Setup
 	req := &Request{parent: new(Mock).Test(t)}
@@ -134,6 +122,35 @@ func TestResponse_Twice(t *testing.T) {
 
 	// Assertions
 	assert.Equal(t, 2, req.repeatability)
+}
+
+func TestResponse_Times(t *testing.T) {
+	// Setup
+	req := &Request{parent: new(Mock).Test(t)}
+	resp := Response{parent: req}
+
+	// Test
+	resp.Times(4)
+
+	// Assertions
+	assert.Equal(t, 4, req.repeatability)
+}
+
+func TestResponse_On(t *testing.T) {
+	// Setup
+	r := &Response{
+		parent:     &Request{parent: new(Mock).Test(t)},
+		statusCode: http.StatusOK,
+		body:       []byte(`Hello World!`),
+	}
+
+	// Test
+	got := r.On(http.MethodPut, "test.com/foo", []byte(`{"foo": "bar"}`))
+
+	// Assertions
+	assert.NotNil(t, got)
+	wantExpectedRequests := []*Request{got}
+	assert.Equal(t, wantExpectedRequests, r.parent.parent.ExpectedRequests)
 }
 
 func TestResponse_Write_FailWriteBody(t *testing.T) {

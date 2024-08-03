@@ -231,6 +231,7 @@ func (m *Mock) AssertNumberOfRequests(t mock.TestingT, method string, path strin
 	u.User = nil
 	u.RawQuery = ""
 	u.Fragment = ""
+	u.RawFragment = ""
 	path = u.String()
 
 	m.mutex.Lock()
@@ -241,11 +242,11 @@ func (m *Mock) AssertNumberOfRequests(t mock.TestingT, method string, path strin
 			continue
 		}
 
-		ru := *request.url
-		ru.User = nil
-		ru.RawQuery = ""
-		ru.Fragment = ""
-		if ru.String() != path {
+		rURL := *request.url
+		rURL.User = nil
+		rURL.RawQuery = ""
+		rURL.Fragment = ""
+		if rURL.String() != path {
 			continue
 		}
 
@@ -307,9 +308,9 @@ func (m *Mock) AssertNotRequested(t mock.TestingT, method string, path string, b
 
 func (m *Mock) checkExpectation(request *Request) (bool, string) {
 	if (!m.checkWasRequested(request.method, request.url, request.body) && request.totalRequests == 0) || (request.repeatability > 0) {
-		return false, fmt.Sprintf("FAIL:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), bodyFragment(request.body))
+		return false, fmt.Sprintf("FAIL:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), trimBody(request.body))
 	}
-	return true, fmt.Sprintf("PASS:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), bodyFragment(request.body))
+	return true, fmt.Sprintf("PASS:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), trimBody(request.body))
 }
 
 func (m *Mock) checkWasRequested(method string, URL *url.URL, body []byte) bool {

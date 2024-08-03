@@ -19,7 +19,7 @@ func makeHandler(s *Server) http.HandlerFunc {
 		func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rc := recover(); rc != nil {
-					if s.recoverable {
+					if s.IsRecoverable() {
 						fmt.Printf("%v\n", rc)
 
 						w.WriteHeader(http.StatusNotFound)
@@ -55,6 +55,10 @@ func NewTLSServer() *Server {
 func (s *Server) Recoverable() *Server {
 	s.recoverable = true
 	return s
+}
+
+func (s *Server) IsRecoverable() bool {
+	return s.recoverable
 }
 
 func (s *Server) On(method string, URL string, body []byte) *Request {

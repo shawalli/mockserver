@@ -209,23 +209,6 @@ func TestRequest_RespondNoContent(t *testing.T) {
 	assert.Equal(t, got, r.response)
 }
 
-func TestRequest_On(t *testing.T) {
-	// Setup
-	m := new(Mock)
-	r := m.On(http.MethodGet, "test.com/foo/1234", nil)
-
-	// Test
-	got := r.On(http.MethodPut, "test.com/foo", []byte(`{"foo": "bar"}`))
-
-	// Assertions
-	assert.NotNil(t, got)
-	wantExpectedRequests := []*Request{
-		r,
-		got,
-	}
-	assert.Equal(t, wantExpectedRequests, m.ExpectedRequests)
-}
-
 func TestRequest_Times(t *testing.T) {
 	// Setup
 	r := Request{parent: new(Mock)}
