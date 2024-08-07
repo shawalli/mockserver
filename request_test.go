@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testBody = `Hello World!`
+
 var testLongBody = []byte(`
 0000000000000000000000000000000000000000000000000000000000000000
 1111111111111111111111111111111111111111111111111111111111111111
@@ -76,7 +78,7 @@ func Test_newRequest(t *testing.T) {
 			name:   "body",
 			method: http.MethodGet,
 			url:    "https://test.com/foo",
-			body:   []byte(`Hello World!`),
+			body:   []byte(testBody),
 			want: &Request{
 				method: "GET",
 				url: &url.URL{
@@ -84,7 +86,7 @@ func Test_newRequest(t *testing.T) {
 					Host:   "test.com",
 					Path:   "/foo",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 		},
 		{
@@ -180,14 +182,14 @@ func TestRequest_RespondOK(t *testing.T) {
 	r := &Request{parent: new(Mock)}
 
 	// Test
-	got := r.RespondOK([]byte(`Hello World!`))
+	got := r.RespondOK([]byte(testBody))
 
 	// Assertions
 	want := &Response{
 		parent:     r,
 		statusCode: http.StatusOK,
 		header:     http.Header{},
-		body:       []byte(`Hello World!`),
+		body:       []byte(testBody),
 	}
 	assert.Equal(t, want, got)
 	assert.Equal(t, got, r.response)
@@ -223,9 +225,7 @@ func TestRequest_Times(t *testing.T) {
 
 func TestRequest_Once(t *testing.T) {
 	// Setup
-	r := Request{
-		parent: new(Mock),
-	}
+	r := Request{parent: new(Mock)}
 
 	// Test
 	r.Once()
@@ -236,9 +236,7 @@ func TestRequest_Once(t *testing.T) {
 
 func TestRequest_Twice(t *testing.T) {
 	// Setup
-	r := Request{
-		parent: new(Mock),
-	}
+	r := Request{parent: new(Mock)}
 
 	// Test
 	r.Twice()
@@ -251,87 +249,87 @@ func TestRequest_diffMethod(t *testing.T) {
 	tests := []struct {
 		name            string
 		request         *Request
-		other           *http.Request
+		received        *http.Request
 		wantDifferences bool
 	}{
 		{
 			name:            "missing-request-method",
 			request:         &Request{},
-			other:           &http.Request{Method: http.MethodGet},
+			received:        &http.Request{Method: http.MethodGet},
 			wantDifferences: true,
 		},
 		{
-			name: "missing-other-method",
+			name: "missing-received-method",
 			request: &Request{
 				method: http.MethodGet,
 			},
-			other:           &http.Request{},
+			received:        &http.Request{},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-methods",
 			request:         &Request{method: http.MethodGet},
-			other:           &http.Request{Method: http.MethodPost},
+			received:        &http.Request{Method: http.MethodPost},
 			wantDifferences: true,
 		},
 		{
 			name:            "anymethod-connect",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodConnect},
+			received:        &http.Request{Method: http.MethodConnect},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-delete",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodDelete},
+			received:        &http.Request{Method: http.MethodDelete},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-get",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodGet},
+			received:        &http.Request{Method: http.MethodGet},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-head",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodHead},
+			received:        &http.Request{Method: http.MethodHead},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-options",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodOptions},
+			received:        &http.Request{Method: http.MethodOptions},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-patch",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodPatch},
+			received:        &http.Request{Method: http.MethodPatch},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-post",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodPost},
+			received:        &http.Request{Method: http.MethodPost},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-put",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodPut},
+			received:        &http.Request{Method: http.MethodPut},
 			wantDifferences: false,
 		},
 		{
 			name:            "anymethod-trace",
 			request:         &Request{method: AnyMethod},
-			other:           &http.Request{Method: http.MethodTrace},
+			received:        &http.Request{Method: http.MethodTrace},
 			wantDifferences: false,
 		},
 		{
 			name:            "equal",
 			request:         &Request{method: http.MethodGet},
-			other:           &http.Request{Method: http.MethodGet},
+			received:        &http.Request{Method: http.MethodGet},
 			wantDifferences: false,
 		},
 	}
@@ -339,7 +337,7 @@ func TestRequest_diffMethod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test
-			got, gotDifferences := tt.request.diffMethod(tt.other)
+			got, gotDifferences := tt.request.diffMethod(tt.received)
 
 			// Assertions
 			assert.NotEmpty(t, got)
@@ -352,103 +350,103 @@ func TestRequest_diffURL(t *testing.T) {
 	tests := []struct {
 		name            string
 		request         *Request
-		other           *http.Request
+		received        *http.Request
 		wantDifferences bool
 	}{
 		{
 			name:            "missing-request-url",
 			request:         &Request{url: &url.URL{}},
-			other:           &http.Request{URL: &url.URL{Path: "test.com"}},
+			received:        &http.Request{URL: &url.URL{Path: "test.com"}},
 			wantDifferences: true,
 		},
 		{
-			name:            "missing-other-url",
+			name:            "missing-received-url",
 			request:         &Request{url: &url.URL{Path: "test.com"}},
-			other:           &http.Request{URL: &url.URL{}},
+			received:        &http.Request{URL: &url.URL{}},
 			wantDifferences: true,
 		},
 		{
 			name:            "missing-both-url",
 			request:         &Request{url: &url.URL{}},
-			other:           &http.Request{URL: &url.URL{}},
+			received:        &http.Request{URL: &url.URL{}},
 			wantDifferences: true,
 		},
 		{
 			name:            "missing-request-scheme",
 			request:         &Request{url: &url.URL{}},
-			other:           &http.Request{URL: &url.URL{Scheme: "http"}},
+			received:        &http.Request{URL: &url.URL{Scheme: "http"}},
 			wantDifferences: true,
 		},
 		{
-			name:            "missing-other-scheme",
+			name:            "missing-received-scheme",
 			request:         &Request{url: &url.URL{Scheme: "http"}},
-			other:           &http.Request{URL: &url.URL{}},
+			received:        &http.Request{URL: &url.URL{}},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-schemes",
 			request:         &Request{url: &url.URL{Scheme: "http"}},
-			other:           &http.Request{URL: &url.URL{Scheme: "https"}},
+			received:        &http.Request{URL: &url.URL{Scheme: "https"}},
 			wantDifferences: true,
 		},
 		{
 			name:            "missing-request-host",
 			request:         &Request{url: &url.URL{}},
-			other:           &http.Request{URL: &url.URL{Host: "test.com"}},
+			received:        &http.Request{URL: &url.URL{Host: "test.com"}},
 			wantDifferences: true,
 		},
 		{
-			name:            "missing-other-host",
+			name:            "missing-received-host",
 			request:         &Request{url: &url.URL{Host: "test.com"}},
-			other:           &http.Request{URL: &url.URL{}},
+			received:        &http.Request{URL: &url.URL{}},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-hosts",
 			request:         &Request{url: &url.URL{Host: "test.com"}},
-			other:           &http.Request{URL: &url.URL{Host: "notest.com"}},
+			received:        &http.Request{URL: &url.URL{Host: "notest.com"}},
 			wantDifferences: true,
 		},
 		{
 			name:            "missing-request-path",
 			request:         &Request{url: &url.URL{}},
-			other:           &http.Request{URL: &url.URL{Path: "/foo"}},
+			received:        &http.Request{URL: &url.URL{Path: "/foo"}},
 			wantDifferences: true,
 		},
 		{
-			name:            "missing-other-path",
+			name:            "missing-received-path",
 			request:         &Request{url: &url.URL{Path: "/foo"}},
-			other:           &http.Request{URL: &url.URL{}},
+			received:        &http.Request{URL: &url.URL{}},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-path",
 			request:         &Request{url: &url.URL{Path: "/foo"}},
-			other:           &http.Request{URL: &url.URL{Path: "/bar"}},
+			received:        &http.Request{URL: &url.URL{Path: "/bar"}},
 			wantDifferences: true,
 		},
 		{
-			name:            "missing-other-query",
+			name:            "missing-received-query",
 			request:         &Request{url: &url.URL{RawQuery: "limit=5"}},
-			other:           &http.Request{URL: &url.URL{}},
+			received:        &http.Request{URL: &url.URL{}},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-queries",
 			request:         &Request{url: &url.URL{RawQuery: "limit=5"}},
-			other:           &http.Request{URL: &url.URL{RawQuery: "offset=10"}},
+			received:        &http.Request{URL: &url.URL{RawQuery: "offset=10"}},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-query-values",
 			request:         &Request{url: &url.URL{RawQuery: "limit=5"}},
-			other:           &http.Request{URL: &url.URL{RawQuery: "limit=10"}},
+			received:        &http.Request{URL: &url.URL{RawQuery: "limit=10"}},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-query-valuesets",
 			request:         &Request{url: &url.URL{RawQuery: "limit=5"}},
-			other:           &http.Request{URL: &url.URL{RawQuery: "limit=10&limit=5"}},
+			received:        &http.Request{URL: &url.URL{RawQuery: "limit=10&limit=5"}},
 			wantDifferences: true,
 		},
 		{
@@ -459,7 +457,7 @@ func TestRequest_diffURL(t *testing.T) {
 				Path:     "/foo",
 				Fragment: "top",
 			}},
-			other: &http.Request{URL: &url.URL{
+			received: &http.Request{URL: &url.URL{
 				Scheme:   "https",
 				Host:     "test.com",
 				Path:     "/foo",
@@ -475,7 +473,7 @@ func TestRequest_diffURL(t *testing.T) {
 				Path:     "/foo",
 				RawQuery: "limit=5&offset=10&next=abcd",
 			}},
-			other: &http.Request{URL: &url.URL{
+			received: &http.Request{URL: &url.URL{
 				Scheme:   "https",
 				Host:     "test.com",
 				Path:     "/foo",
@@ -491,7 +489,7 @@ func TestRequest_diffURL(t *testing.T) {
 				Path:     "/foo",
 				RawQuery: "limit=5",
 			}},
-			other: &http.Request{URL: &url.URL{
+			received: &http.Request{URL: &url.URL{
 				Scheme:   "https",
 				Host:     "test.com",
 				Path:     "/foo",
@@ -507,7 +505,7 @@ func TestRequest_diffURL(t *testing.T) {
 				Path:     "/foo",
 				RawQuery: "limit=5&next=abcd&offset=10",
 			}},
-			other: &http.Request{URL: &url.URL{
+			received: &http.Request{URL: &url.URL{
 				Scheme:   "https",
 				Host:     "test.com",
 				Path:     "/foo",
@@ -520,7 +518,7 @@ func TestRequest_diffURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test
-			got, gotDifferences := tt.request.diffURL(tt.other)
+			got, gotDifferences := tt.request.diffURL(tt.received)
 
 			// Assertions
 			assert.NotEmpty(t, got)
@@ -533,10 +531,10 @@ func TestRequest_diffBody_FailToReadBody(t *testing.T) {
 	// Setup
 	r := &Request{}
 
-	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
+	received := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
 
 	// Test
-	gotOutput, gotDifferences := r.diffBody(test)
+	gotOutput, gotDifferences := r.diffBody(received)
 
 	// Assertions
 	assert.Contains(t, gotOutput, ErrReadBody.Error())
@@ -547,49 +545,49 @@ func TestRequest_diffBody(t *testing.T) {
 	tests := []struct {
 		name            string
 		request         *Request
-		other           *http.Request
+		received        *http.Request
 		wantDifferences bool
 	}{
 		{
 			name:            "missing-request-body",
 			request:         &Request{},
-			other:           &http.Request{Body: io.NopCloser(strings.NewReader("Hi"))},
+			received:        &http.Request{Body: io.NopCloser(strings.NewReader("Hello World!"))},
 			wantDifferences: true,
 		},
 		{
-			name:            "missing-other-body",
-			request:         &Request{body: []byte(`Hi`)},
-			other:           &http.Request{Body: http.NoBody},
+			name:            "missing-received-body",
+			request:         &Request{body: []byte(testBody)},
+			received:        &http.Request{Body: http.NoBody},
 			wantDifferences: true,
 		},
 		{
 			name:            "different-bodies",
-			request:         &Request{body: []byte(`Hi`)},
-			other:           &http.Request{Body: io.NopCloser(strings.NewReader("HI"))},
+			request:         &Request{body: []byte(testBody)},
+			received:        &http.Request{Body: io.NopCloser(strings.NewReader("Hello World."))},
 			wantDifferences: true,
 		},
 		{
 			name:            "missing-both-bodies",
 			request:         &Request{},
-			other:           &http.Request{Body: http.NoBody},
+			received:        &http.Request{Body: http.NoBody},
 			wantDifferences: false,
 		},
 		{
 			name:            "long-request-body",
 			request:         &Request{body: testLongBody},
-			other:           &http.Request{Body: io.NopCloser(strings.NewReader("Hi"))},
+			received:        &http.Request{Body: io.NopCloser(strings.NewReader("Hello World!"))},
 			wantDifferences: true,
 		},
 		{
-			name:            "long-other-body",
+			name:            "long-received-body",
 			request:         &Request{},
-			other:           &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
+			received:        &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
 			wantDifferences: true,
 		},
 		{
 			name:            "long-both-bodies",
 			request:         &Request{body: testLongBody},
-			other:           &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
+			received:        &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
 			wantDifferences: false,
 		},
 	}
@@ -597,7 +595,7 @@ func TestRequest_diffBody(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test
-			got, gotDifferences := tt.request.diffBody(tt.other)
+			got, gotDifferences := tt.request.diffBody(tt.received)
 
 			// Assertions
 			assert.NotEmpty(t, got)
@@ -610,7 +608,7 @@ func TestRequest_diff(t *testing.T) {
 	tests := []struct {
 		name            string
 		request         *Request
-		other           *http.Request
+		received        *http.Request
 		wantDifferences int
 	}{
 		{
@@ -619,7 +617,7 @@ func TestRequest_diff(t *testing.T) {
 				method: http.MethodGet,
 				url:    &url.URL{Path: "test.com"},
 			},
-			other: &http.Request{
+			received: &http.Request{
 				Method: http.MethodPut,
 				URL:    &url.URL{Path: "test.com"},
 				Body:   http.NoBody,
@@ -635,7 +633,7 @@ func TestRequest_diff(t *testing.T) {
 					Host:   "test.com",
 				},
 			},
-			other: &http.Request{
+			received: &http.Request{
 				Method: http.MethodGet,
 				URL: &url.URL{
 					Scheme: "https",
@@ -656,7 +654,7 @@ func TestRequest_diff(t *testing.T) {
 					RawQuery: "page=2",
 				},
 			},
-			other: &http.Request{
+			received: &http.Request{
 				Method: http.MethodGet,
 				URL: &url.URL{
 					Scheme:   "https",
@@ -673,9 +671,9 @@ func TestRequest_diff(t *testing.T) {
 			request: &Request{
 				method: http.MethodPost,
 				url:    &url.URL{Path: "test.com/foo"},
-				body:   []byte(`Hello World!`),
+				body:   []byte(testBody),
 			},
-			other: &http.Request{
+			received: &http.Request{
 				Method: http.MethodPost,
 				URL:    &url.URL{Path: "test.com/foo"},
 				Body:   io.NopCloser(strings.NewReader(`Hi World.`)),
@@ -693,7 +691,7 @@ func TestRequest_diff(t *testing.T) {
 					RawQuery: "page=2",
 				},
 			},
-			other: &http.Request{
+			received: &http.Request{
 				Method: http.MethodPut,
 				URL: &url.URL{
 					Scheme:   "https",
@@ -715,7 +713,7 @@ func TestRequest_diff(t *testing.T) {
 					RawQuery: "page=2",
 				},
 			},
-			other: &http.Request{
+			received: &http.Request{
 				Method: http.MethodPut,
 				URL: &url.URL{
 					Scheme: "https",
@@ -731,7 +729,7 @@ func TestRequest_diff(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test
-			got, gotDifferennces := tt.request.diff(tt.other)
+			got, gotDifferennces := tt.request.diff(tt.received)
 
 			// Assertions
 			assert.Equal(t, tt.wantDifferences, gotDifferennces)
@@ -764,7 +762,7 @@ Body: (0) (Missing)`,
 					RawQuery: "limit=1",
 					Fragment: "back",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			want: `
 Method: (Missing)
@@ -787,7 +785,7 @@ Body: (12) Hello World!`,
 					RawQuery: "limit=1",
 					Fragment: "back",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			want: `
 Method: (AnyMethod)
@@ -804,7 +802,7 @@ Body: (12) Hello World!`,
 			request: &Request{
 				method: http.MethodGet,
 				url:    &url.URL{},
-				body:   []byte(`Hello World!`),
+				body:   []byte(testBody),
 			},
 			want: `
 Method: GET
@@ -821,7 +819,7 @@ Body: (12) Hello World!`,
 					RawQuery: "limit=1",
 					Fragment: "back",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			want: `
 Method: GET
@@ -843,7 +841,7 @@ Body: (12) Hello World!`,
 					RawQuery: "limit=1",
 					Fragment: "back",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			want: `
 Method: GET
@@ -865,7 +863,7 @@ Body: (12) Hello World!`,
 					RawQuery: "limit=1",
 					Fragment: "back",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			want: `
 Method: GET
@@ -887,7 +885,7 @@ Body: (12) Hello World!`,
 					Path:     "/foo",
 					Fragment: "back",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			want: `
 Method: GET
@@ -909,7 +907,7 @@ Body: (12) Hello World!`,
 					Path:     "/foo",
 					RawQuery: "limit=1",
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			want: `
 Method: GET

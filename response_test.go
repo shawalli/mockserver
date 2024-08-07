@@ -84,86 +84,86 @@ func TestResponse_Header(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			req := &Request{parent: new(Mock).Test(t)}
-			resp := newResponse(
-				req,
+			expected := &Request{parent: new(Mock).Test(t)}
+			response := newResponse(
+				expected,
 				http.StatusTemporaryRedirect,
 				nil,
 			)
 
 			// Test
-			resp = tt.headerFunc(resp)
+			response = tt.headerFunc(response)
 
 			// Assertions
-			tt.want.parent = req
-			assert.Equal(t, tt.want, resp)
+			tt.want.parent = expected
+			assert.Equal(t, tt.want, response)
 		})
 	}
 }
 
 func TestResponse_Once(t *testing.T) {
 	// Setup
-	req := &Request{parent: new(Mock).Test(t)}
-	resp := Response{parent: req}
+	expected := &Request{parent: new(Mock).Test(t)}
+	response := Response{parent: expected}
 
 	// Test
-	resp.Once()
+	response.Once()
 
 	// Assertions
-	assert.Equal(t, 1, req.repeatability)
+	assert.Equal(t, 1, expected.repeatability)
 }
 
 func TestResponse_Twice(t *testing.T) {
 	// Setup
-	req := &Request{parent: new(Mock).Test(t)}
-	resp := Response{parent: req}
+	expected := &Request{parent: new(Mock).Test(t)}
+	response := Response{parent: expected}
 
 	// Test
-	resp.Twice()
+	response.Twice()
 
 	// Assertions
-	assert.Equal(t, 2, req.repeatability)
+	assert.Equal(t, 2, expected.repeatability)
 }
 
 func TestResponse_Times(t *testing.T) {
 	// Setup
-	req := &Request{parent: new(Mock).Test(t)}
-	resp := Response{parent: req}
+	expected := &Request{parent: new(Mock).Test(t)}
+	response := Response{parent: expected}
 
 	// Test
-	resp.Times(4)
+	response.Times(4)
 
 	// Assertions
-	assert.Equal(t, 4, req.repeatability)
+	assert.Equal(t, 4, expected.repeatability)
 }
 
 func TestResponse_On(t *testing.T) {
 	// Setup
-	r := &Response{
+	response := &Response{
 		parent:     &Request{parent: new(Mock).Test(t)},
 		statusCode: http.StatusOK,
-		body:       []byte(`Hello World!`),
+		body:       []byte(testBody),
 	}
 
 	// Test
-	got := r.On(http.MethodPut, "test.com/foo", []byte(`{"foo": "bar"}`))
+	got := response.On(http.MethodPut, "test.com/foo", []byte(`{"foo": "bar"}`))
 
 	// Assertions
 	assert.NotNil(t, got)
 	wantExpectedRequests := []*Request{got}
-	assert.Equal(t, wantExpectedRequests, r.parent.parent.ExpectedRequests)
+	assert.Equal(t, wantExpectedRequests, response.parent.parent.ExpectedRequests)
 }
 
 func TestResponse_Write_FailWriteBody(t *testing.T) {
 	// Setup
-	r := &Response{
+	response := &Response{
 		parent:     &Request{parent: new(Mock).Test(t)},
 		statusCode: http.StatusOK,
-		body:       []byte(`Hello World!`),
+		body:       []byte(testBody),
 	}
 
 	// Test
-	gotN, gotErr := r.Write(&badResponseWriter{})
+	gotN, gotErr := response.Write(&badResponseWriter{})
 
 	// Assertions
 	assert.Equal(t, -1, gotN)
@@ -191,22 +191,22 @@ func TestResponse_Write(t *testing.T) {
 			name: "ok-headers",
 			response: &Response{
 				statusCode: http.StatusOK,
-				body:       []byte(`Hello World!`),
+				body:       []byte(testBody),
 				header:     http.Header{"next": []string{"aaa21242"}},
 			},
 			wantStatusCode: http.StatusOK,
 			wantHeaders:    http.Header{"next": []string{"aaa21242"}},
-			wantBody:       []byte(`Hello World!`),
+			wantBody:       []byte(testBody),
 		},
 		{
 			name: "ok-body",
 			response: &Response{
 				statusCode: http.StatusOK,
-				body:       []byte(`Hello World!`),
+				body:       []byte(testBody),
 			},
 			wantStatusCode: http.StatusOK,
 			wantHeaders:    http.Header{},
-			wantBody:       []byte(`Hello World!`),
+			wantBody:       []byte(testBody),
 		},
 		{
 			name: "ok-headers-body",
@@ -216,14 +216,14 @@ func TestResponse_Write(t *testing.T) {
 					"X-Session-Id": []string{"1234"},
 					"X-Request-Id": []string{"5678"},
 				},
-				body: []byte(`Hello World!`),
+				body: []byte(testBody),
 			},
 			wantStatusCode: http.StatusOK,
 			wantHeaders: http.Header{
 				"X-Session-Id": []string{"1234"},
 				"X-Request-Id": []string{"5678"},
 			},
-			wantBody: []byte(`Hello World!`),
+			wantBody: []byte(testBody),
 		},
 		{
 			name: "bad-request",
@@ -247,16 +247,16 @@ func TestResponse_Write(t *testing.T) {
 			// Test
 			gotN, gotErr := tt.response.Write(recorder)
 
-			resp := recorder.Result()
-			gotBody, err := io.ReadAll(resp.Body)
+			response := recorder.Result()
+			gotBody, err := io.ReadAll(response.Body)
 			if err != nil {
 				t.Fatalf("unexpected error reading test response body: %v", err)
 			}
 
 			// Assertions
 			assert.NoError(t, gotErr)
-			assert.Equal(t, tt.wantStatusCode, resp.StatusCode)
-			assert.Equal(t, tt.wantHeaders, resp.Header)
+			assert.Equal(t, tt.wantStatusCode, response.StatusCode)
+			assert.Equal(t, tt.wantHeaders, response.Header)
 			assert.Equal(t, len(tt.wantBody), gotN)
 			assert.Equal(t, tt.wantBody, gotBody)
 		})

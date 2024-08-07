@@ -52,7 +52,7 @@ func (r *Response) Header(key string, value string, values ...string) *Response 
 }
 
 // Once is a convenience method which indicates that the grandparent mock
-// should only return the parent's response once.
+// should only expect the parent request once.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").RespondNoContent().Once()
 func (r *Response) Once() *Request {
@@ -60,7 +60,7 @@ func (r *Response) Once() *Request {
 }
 
 // Twice is a convenience method which indicates that the grandparent mock
-// should only return the parent's response twice.
+// should only expect the parent request twice.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").RespondNoContent().Twice()
 func (r *Response) Twice() *Request {
@@ -68,7 +68,7 @@ func (r *Response) Twice() *Request {
 }
 
 // Times is a convenience method which indicates that the grandparent mock
-// should only return the indicated number of times.
+// should only expect the parent request the indicated number of times.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").RespondNoContent().Times(5)
 func (r *Response) Times(i int) *Request {

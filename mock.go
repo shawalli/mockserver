@@ -45,7 +45,7 @@ func (m *Mock) On(method string, URL string, body []byte) *Request {
 		m.fail(fmt.Sprintf("failed to parse url. Error: %v\n", err))
 	}
 
-	r := newRequest(
+	expected := newRequest(
 		m,
 		method,
 		parsedURL,
@@ -55,8 +55,8 @@ func (m *Mock) On(method string, URL string, body []byte) *Request {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	m.ExpectedRequests = append(m.ExpectedRequests, r)
-	return r
+	m.ExpectedRequests = append(m.ExpectedRequests, expected)
+	return expected
 }
 
 // Test sets the test struct variable of the mock object.
@@ -96,19 +96,19 @@ func (m *Mock) requests() []Request {
 // findExpectedRequest finds the first Request that exactly matches a received
 // request and does not have its repeatability disabled.
 func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
-	var expectedRequest *Request
+	var expected *Request
 	for i, er := range m.ExpectedRequests {
 		if _, d := er.diff(actual); d != 0 {
 			continue
 		}
 
-		expectedRequest = er
+		expected = er
 		if er.repeatability > -1 {
 			return i, er
 		}
 	}
 
-	return -1, expectedRequest
+	return -1, expected
 }
 
 // findClosestRequest finds the first request that most closely matches a
@@ -117,13 +117,13 @@ func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
 // This method should only be used if there is no exact match of a received
 // request to the list of expected Requests. If a closest match is found, it is
 // returned, along with a formatted string of the differences.
-func (m *Mock) findClosestRequest(other *http.Request) (*Request, string) {
+func (m *Mock) findClosestRequest(received *http.Request) (*Request, string) {
 	var bestMatch matchCandidate
 
-	for _, request := range m.expectedRequests() {
-		errInfo, diffCount := request.diff(other)
+	for _, expected := range m.expectedRequests() {
+		errInfo, diffCount := expected.diff(received)
 		tempCandidate := matchCandidate{
-			request:   request,
+			request:   expected,
 			mismatch:  errInfo,
 			diffCount: diffCount,
 		}
@@ -138,21 +138,21 @@ func (m *Mock) findClosestRequest(other *http.Request) (*Request, string) {
 // Requested tells the mock that a request has been received and gets a response
 // to return. Panics if the request is unexpected (i.e. not preceded by
 // appropriate .On .Respond() calls)
-func (m *Mock) Requested(r *http.Request) *Response {
+func (m *Mock) Requested(received *http.Request) *Response {
 	m.mutex.Lock()
 
-	requestBody, err := readHTTPRequestBody(r)
+	receivedBody, err := readHTTPRequestBody(received)
 	if err != nil {
 		m.mutex.Unlock()
 		m.fail("\nassert: httpmock: Failed to read requested body. Error: %v", err)
 	}
 
-	found, request := m.findExpectedRequest(r)
+	found, expected := m.findExpectedRequest(received)
 	if found < 0 {
 		// Expected request found, but has already been requested with repeatable times
-		if request != nil {
+		if expected != nil {
 			m.mutex.Unlock()
-			m.fail("\nassert: httpmock: The request has been called over %d times.\n\tEither do one more Mock.On(%q, %q), or remove extra request.", request.totalRequests, r.Method, r.URL.String())
+			m.fail("\nassert: httpmock: The request has been called over %d times.\n\tEither do one more Mock.On(%q, %q), or remove extra request.", expected.totalRequests, received.Method, received.URL.String())
 		}
 		// We have to fail here - because we don't know what to do for the
 		// response. This is becuase:
@@ -160,47 +160,47 @@ func (m *Mock) Requested(r *http.Request) *Response {
 		//	a) This is a totally unexpected request
 		//	b) The arguments are not what was expected, or
 		//	c) The deveoper has forgotten to add an accompanying On...Respond pair
-		closestRequest, mismatch := m.findClosestRequest(r)
+		closest, mismatch := m.findClosestRequest(received)
 		m.mutex.Unlock()
 
-		if closestRequest != nil {
+		if closest != nil {
 			tempRequest := &Request{
 				parent: m,
-				method: r.Method,
-				url:    r.URL,
-				body:   requestBody,
+				method: received.Method,
+				url:    received.URL,
+				body:   receivedBody,
 			}
 
-			tmp := "\t" + strings.Join(strings.Split(tempRequest.String(), "\n"), "\n\t")
-			closest := "\t" + strings.Join(strings.Split(closestRequest.String(), "\n"), "\n\t")
+			tempStr := "\t" + strings.Join(strings.Split(tempRequest.String(), "\n"), "\n\t")
+			closestStr := "\t" + strings.Join(strings.Split(closest.String(), "\n"), "\n\t")
 
 			m.fail("\n\nhttpmock: Unexpected Request\n-----------------------------\n\n%s\n\nThe closest request I have is: \n\n%s\nDiff: %s\n",
-				tmp,
-				closest,
+				tempStr,
+				closestStr,
 				strings.TrimSpace(mismatch),
 			)
 		} else {
-			m.fail("\nassert: httpmock: I don't know what to return because the request was unexpected.\n\tEither do Mock.On(%q, %q), or remove the request.\n", r.Method, r.URL.String())
+			m.fail("\nassert: httpmock: I don't know what to return because the request was unexpected.\n\tEither do Mock.On(%q, %q), or remove the request.\n", received.Method, received.URL.String())
 		}
 	}
 
-	if request.repeatability == 1 {
-		request.repeatability = -1
-	} else if request.repeatability > 1 {
-		request.repeatability--
+	if expected.repeatability == 1 {
+		expected.repeatability = -1
+	} else if expected.repeatability > 1 {
+		expected.repeatability--
 	}
-	request.totalRequests++
+	expected.totalRequests++
 
 	// Add a clean request to received request list
-	newRequest := newRequest(m, r.Method, r.URL, requestBody)
-	if request.response != nil {
-		newResponse := *request.response
+	newRequest := newRequest(m, received.Method, received.URL, receivedBody)
+	if expected.response != nil {
+		newResponse := *expected.response
 		newRequest.response = &newResponse
 	}
 	m.Requests = append(m.Requests, *newRequest)
 	m.mutex.Unlock()
 
-	return request.response
+	return expected.response
 }
 
 // matchCandidate holds details about possible Request matches for a received
@@ -250,8 +250,8 @@ func (m *Mock) AssertExpectations(t mock.TestingT) bool {
 
 	// Iterate through each expectation
 	expectedRequests := m.expectedRequests()
-	for _, expectedRequest := range expectedRequests {
-		if satisfied, reason := m.checkExpectation(expectedRequest); !satisfied {
+	for _, er := range expectedRequests {
+		if satisfied, reason := m.checkExpectation(er); !satisfied {
 			failedExpectations++
 			t.Logf(reason)
 		}
@@ -291,16 +291,16 @@ func (m *Mock) AssertNumberOfRequests(t mock.TestingT, method string, path strin
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	var actualRequests int
-	for _, request := range m.requests() {
-		if request.method != method {
+	for _, actual := range m.requests() {
+		if actual.method != method {
 			continue
 		}
 
-		rURL := *request.url
-		rURL.User = nil
-		rURL.RawQuery = ""
-		rURL.Fragment = ""
-		if rURL.String() != path {
+		u := *actual.url
+		u.User = nil
+		u.RawQuery = ""
+		u.Fragment = ""
+		if u.String() != path {
 			continue
 		}
 
@@ -364,22 +364,22 @@ func (m *Mock) AssertNotRequested(t mock.TestingT, method string, path string, b
 
 // checkExpectation checks whether an expected Request was received, and
 // whether it received the expected number of times.
-func (m *Mock) checkExpectation(request *Request) (bool, string) {
-	if (!m.checkWasRequested(request.method, request.url, request.body) && request.totalRequests == 0) || (request.repeatability > 0) {
-		return false, fmt.Sprintf("FAIL:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), trimBody(request.body))
+func (m *Mock) checkExpectation(expected *Request) (bool, string) {
+	if (!m.checkWasRequested(expected.method, expected.url, expected.body) && expected.totalRequests == 0) || (expected.repeatability > 0) {
+		return false, fmt.Sprintf("FAIL:\t%s %s\n\t(%d) %s", expected.method, expected.url, len(expected.body), trimBody(expected.body))
 	}
-	return true, fmt.Sprintf("PASS:\t%s %s\n\t(%d) %s", request.method, request.url, len(request.body), trimBody(request.body))
+	return true, fmt.Sprintf("PASS:\t%s %s\n\t(%d) %s", expected.method, expected.url, len(expected.body), trimBody(expected.body))
 }
 
 // checkWasRequested checks whether a set of request parameters was received.
 func (m *Mock) checkWasRequested(method string, URL *url.URL, body []byte) bool {
-	tempHTTPRequest := &http.Request{
+	tempReceived := &http.Request{
 		Method: method,
 		URL:    URL,
 		Body:   io.NopCloser(bytes.NewReader(body)),
 	}
-	for _, request := range m.requests() {
-		if _, d := request.diff(tempHTTPRequest); d == 0 {
+	for _, actual := range m.requests() {
+		if _, d := actual.diff(tempReceived); d == 0 {
 			return true
 		}
 	}

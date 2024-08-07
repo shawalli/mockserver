@@ -135,14 +135,14 @@ func (r *Request) Times(i int) *Request {
 
 // readHTTPRequestBody reads the body of a HTTP request and resets the
 // request's body so that it may be read again afterward.
-func readHTTPRequestBody(r *http.Request) ([]byte, error) {
+func readHTTPRequestBody(received *http.Request) ([]byte, error) {
 	// Read request body and reset it for the next comparison
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(received.Body)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrReadBody, err)
 	}
-	r.Body.Close()
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
+	received.Body.Close()
+	received.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	return body, nil
 }
@@ -159,7 +159,7 @@ func diffMissing(v string) (string, bool) {
 // diffMethod detects differences between a Request's HTTP method and a HTTP
 // request's HTTP method. It responds with a formatted string of the difference
 // and the calculated number of differences.
-func (r *Request) diffMethod(other *http.Request) (string, int) {
+func (r *Request) diffMethod(received *http.Request) (string, int) {
 	var output string
 	var differences int
 
@@ -170,12 +170,12 @@ func (r *Request) diffMethod(other *http.Request) (string, int) {
 		expected = "(AnyMethod)"
 	}
 
-	actual := other.Method
-	if other.Method == "" {
+	actual := received.Method
+	if received.Method == "" {
 		actual = fmtMissing
 	}
 
-	if (r.method == AnyMethod && other.Method != "") || ((r.method == other.Method) && (r.method != "")) {
+	if (r.method == AnyMethod && received.Method != "") || ((r.method == received.Method) && (r.method != "")) {
 		output = fmt.Sprintf("\t%d: PASS:  %s == %s\n", 0, actual, expected)
 	} else {
 		output = fmt.Sprintf("\t%d: FAIL:  %s != %s\n", 0, actual, expected)
@@ -193,7 +193,7 @@ func (r *Request) diffMethod(other *http.Request) (string, int) {
 //   - If Request query is empty, don't compare query parameters at all
 //   - Otherwise, only compare query parameters found in Request; ignore query
 //     parameters in HTTP request that are not enumerated in the Request.
-func (r *Request) diffQuery(other *http.Request) (string, int) {
+func (r *Request) diffQuery(received *http.Request) (string, int) {
 	var output string
 	var differences int
 
@@ -202,7 +202,7 @@ func (r *Request) diffQuery(other *http.Request) (string, int) {
 		return output, differences
 	}
 
-	oQuery := other.URL.Query()
+	oQuery := received.URL.Query()
 	oFilteredQuery := url.Values{}
 	for k := range rQuery {
 		if v, ok := oQuery[k]; ok {
@@ -248,12 +248,12 @@ func (r *Request) diffQuery(other *http.Request) (string, int) {
 //   - .OmitHost
 //   - .ForceQuery
 //   - .RawFragment
-func (r *Request) diffURL(other *http.Request) (string, int) {
+func (r *Request) diffURL(received *http.Request) (string, int) {
 	var output string
 	var differences int
 
 	expected, eok := diffMissing(r.url.String())
-	actual, aok := diffMissing(other.URL.String())
+	actual, aok := diffMissing(received.URL.String())
 	if !eok || !aok {
 		output = fmt.Sprintf("\t%d: FAIL:  %s == %s\n", 1, actual, expected)
 		differences++
@@ -263,56 +263,56 @@ func (r *Request) diffURL(other *http.Request) (string, int) {
 	var schemeFmt, hostFmt, pathFmt, queryFmt, fragmentFmt string
 
 	e, eok := diffMissing(r.url.Scheme)
-	a, aok := diffMissing(other.URL.Scheme)
+	a, aok := diffMissing(received.URL.Scheme)
 	if eok || aok {
 		eq := fmtNotEqual
-		if cmp.Equal(r.url.Scheme, other.URL.Scheme) {
+		if cmp.Equal(r.url.Scheme, received.URL.Scheme) {
 			eq = fmtEqual
 		}
 		schemeFmt = fmt.Sprintf("\t\t    Scheme:  %s %s %s\n", a, eq, e)
 	}
 
 	e, eok = diffMissing(r.url.Host)
-	a, aok = diffMissing(other.URL.Host)
+	a, aok = diffMissing(received.URL.Host)
 	if eok || aok {
 		eq := fmtNotEqual
-		if cmp.Equal(r.url.Host, other.URL.Host) {
+		if cmp.Equal(r.url.Host, received.URL.Host) {
 			eq = fmtEqual
 		}
 		hostFmt = fmt.Sprintf("\t\t      Host:  %s %s %s\n", a, eq, e)
 	}
 
 	e, eok = diffMissing(r.url.Path)
-	a, aok = diffMissing(other.URL.Path)
+	a, aok = diffMissing(received.URL.Path)
 	if eok || aok {
 		eq := fmtNotEqual
-		if cmp.Equal(r.url.Path, other.URL.Path) {
+		if cmp.Equal(r.url.Path, received.URL.Path) {
 			eq = fmtEqual
 		}
 		pathFmt = fmt.Sprintf("\t\t      Path:  %s %s %s\n", a, eq, e)
 	}
 
-	queryFmt, queryDifferences := r.diffQuery(other)
+	queryFmt, queryDifferences := r.diffQuery(received)
 
 	e, eok = diffMissing(r.url.Fragment)
-	a, aok = diffMissing(other.URL.Fragment)
+	a, aok = diffMissing(received.URL.Fragment)
 	if eok || aok {
 		eq := fmtNotEqual
-		if cmp.Equal(r.url.Fragment, other.URL.Fragment) {
+		if cmp.Equal(r.url.Fragment, received.URL.Fragment) {
 			eq = fmtEqual
 		}
 		fragmentFmt = fmt.Sprintf("\t\t  Fragment:  %s %s %s\n", a, eq, e)
 	}
 
-	if cmp.Equal(*r.url, *other.URL, cmpoptIgnoreURLRawQuery, cmpoptIgnoreURLUnexportedFields) && queryDifferences == 0 {
-		output = fmt.Sprintf("\t%d: PASS:  %s == %s\n", 1, other.URL.String(), r.url.String())
+	if cmp.Equal(*r.url, *received.URL, cmpoptIgnoreURLRawQuery, cmpoptIgnoreURLUnexportedFields) && queryDifferences == 0 {
+		output = fmt.Sprintf("\t%d: PASS:  %s == %s\n", 1, received.URL.String(), r.url.String())
 		output += schemeFmt
 		output += hostFmt
 		output += pathFmt
 		output += queryFmt
 		output += fragmentFmt
 	} else {
-		output = fmt.Sprintf("\t%d: FAIL:  %s == %s\n", 1, other.URL.String(), r.url.String())
+		output = fmt.Sprintf("\t%d: FAIL:  %s == %s\n", 1, received.URL.String(), r.url.String())
 		output += schemeFmt
 		output += hostFmt
 		output += pathFmt
@@ -340,11 +340,11 @@ func trimBody(body []byte) string {
 // diffBody detects differences between a Request's body and a HTTP request's
 // body. It responds with a formatted string of the differences and the
 // calculated number of differences.
-func (r *Request) diffBody(other *http.Request) (string, int) {
+func (r *Request) diffBody(received *http.Request) (string, int) {
 	var output string
 	var differences int
 
-	otherBody, err := readHTTPRequestBody(other)
+	otherBody, err := readHTTPRequestBody(received)
 	if err != nil {
 		return err.Error(), 1
 	}
@@ -373,19 +373,19 @@ func (r *Request) diffBody(other *http.Request) (string, int) {
 // diff detects differences between a Request and a HTTP request. It responds
 // with a formatted string of the differences and the calculated number of
 // differences.
-func (r *Request) diff(other *http.Request) (string, int) {
+func (r *Request) diff(received *http.Request) (string, int) {
 	output := "\n"
 	var differences int
 
-	o, d := r.diffMethod(other)
+	o, d := r.diffMethod(received)
 	output += o
 	differences += d
 
-	o, d = r.diffURL(other)
+	o, d = r.diffURL(received)
 	output += o
 	differences += d
 
-	o, d = r.diffBody(other)
+	o, d = r.diffBody(received)
 	output += o
 	differences += d
 

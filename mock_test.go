@@ -41,11 +41,13 @@ func (m *MockTestingT) Helper() {}
 // mustNewRequest is a convenience test helper that wraps a call to
 // http.NewRequest() and panics if an error is returned. It is only
 // intended to be used during test setup.
-func mustNewRequest(r *http.Request, err error) *http.Request {
+//
+//	mustNewRequest(http.NewRequest(http.GetMethpd, "https://test.com/foo", nil))
+func mustNewRequest(request *http.Request, err error) *http.Request {
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error making request: %v", err))
 	}
-	return r
+	return request
 }
 
 func TestMock_fail_NoTestingT(t *testing.T) {
@@ -318,7 +320,7 @@ func TestMock_Requested_FailToReadRequestBody(t *testing.T) {
 	m := new(Mock).Test(mockT)
 	m.On(http.MethodGet, "https://test.com/foo", nil).RespondOK(nil)
 
-	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
+	received := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", io.NopCloser(&badReader{})))
 
 	defer func() {
 		r := recover()
@@ -332,7 +334,7 @@ func TestMock_Requested_FailToReadRequestBody(t *testing.T) {
 	}()
 
 	// Test
-	m.Requested(test)
+	m.Requested(received)
 	successfulRequestedCall++
 }
 
@@ -344,7 +346,7 @@ func TestMock_Requested_FailToFindAnyMatch(t *testing.T) {
 	m := new(Mock).Test(mockT)
 	m.On(http.MethodGet, "https://test.com/foo", nil).RespondOK(nil)
 
-	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
+	received := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
 	defer func() {
 		r := recover()
@@ -358,7 +360,7 @@ func TestMock_Requested_FailToFindAnyMatch(t *testing.T) {
 	}()
 
 	// Test
-	m.Requested(test)
+	m.Requested(received)
 	successfulRequestedCall++
 }
 
@@ -370,7 +372,7 @@ func TestMock_Requested_FailToFindRepeatableMatch(t *testing.T) {
 	m := new(Mock).Test(mockT)
 	m.On(http.MethodPut, "https://test.com/foo", nil).RespondOK(nil).Once()
 
-	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
+	received := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
 	defer func() {
 		r := recover()
@@ -384,9 +386,9 @@ func TestMock_Requested_FailToFindRepeatableMatch(t *testing.T) {
 	}()
 
 	// Test
-	m.Requested(test)
+	m.Requested(received)
 	successfulRequestedCall++
-	m.Requested(test)
+	m.Requested(received)
 	successfulRequestedCall++
 }
 
@@ -397,7 +399,7 @@ func TestMock_Requested_FailToFindClosestRequest(t *testing.T) {
 	mockT := &MockTestingT{}
 	m := new(Mock).Test(mockT)
 
-	test := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
+	received := mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/foo", http.NoBody))
 
 	defer func() {
 		r := recover()
@@ -411,7 +413,7 @@ func TestMock_Requested_FailToFindClosestRequest(t *testing.T) {
 	}()
 
 	// Test
-	m.Requested(test)
+	m.Requested(received)
 	successfulRequestedCall++
 }
 
@@ -421,10 +423,10 @@ func TestMock_Requested(t *testing.T) {
 	wantReq := m.On(http.MethodGet, "https://test.com/foo", nil)
 	wantResp := wantReq.RespondOK(nil)
 
-	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
 	// Test
-	got := m.Requested(test)
+	got := m.Requested(received)
 
 	// Assertions
 	assert.Equal(t, wantResp, got)
@@ -438,10 +440,10 @@ func TestMock_RequestedOnce(t *testing.T) {
 	wantReq := m.On(http.MethodGet, "https://test.com/foo", nil).Once()
 	wantResp := wantReq.RespondOK(nil)
 
-	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
 	// Test
-	got := m.Requested(test)
+	got := m.Requested(received)
 
 	// Assertions
 	assert.Equal(t, wantResp, got)
@@ -453,17 +455,17 @@ func TestMock_RequestedOnce(t *testing.T) {
 func TestMock_RequestedTimes(t *testing.T) {
 	// Setup
 	m := new(Mock).Test(t)
-	wantReq := m.On(http.MethodGet, "https://test.com/foo", nil).Times(4)
-	wantResp := wantReq.RespondOK(nil)
+	expected := m.On(http.MethodGet, "https://test.com/foo", nil).Times(4)
+	wantResponse := expected.RespondOK(nil)
 
-	test := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/foo", http.NoBody))
 
 	// Test
-	got := m.Requested(test)
+	got := m.Requested(received)
 
 	// Assertions
-	assert.Equal(t, wantResp, got)
-	assert.Equal(t, got.parent, wantReq)
+	assert.Equal(t, wantResponse, got)
+	assert.Equal(t, got.parent, expected)
 	assert.Equal(t, 3, got.parent.repeatability)
 	assert.Equal(t, 1, got.parent.totalRequests)
 }
@@ -490,33 +492,27 @@ func TestMock_AssertExpectations_NoMatch(t *testing.T) {
 
 	assert.False(t, m.AssertExpectations(mockT))
 
-	httpRequest := mustNewRequest(
-		http.NewRequest(
-			http.MethodGet,
-			"test.com/foo/1234",
-			http.NoBody,
-		),
-	)
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "test.com/foo/1234", http.NoBody))
 
 	// Test
-	m.Requested(httpRequest)
+	m.Requested(received)
 	successfulRequestedCall++
 }
 
 func TestMock_AssertExpectations(t *testing.T) {
 	tests := []struct {
-		name        string
-		method      string
-		path        string
-		body        []byte
-		httpRequest *http.Request
+		name     string
+		method   string
+		path     string
+		body     []byte
+		received *http.Request
 	}{
 		{
 			name:   "basic",
 			method: http.MethodGet,
 			path:   "test.com/foo",
 			body:   nil,
-			httpRequest: mustNewRequest(
+			received: mustNewRequest(
 				http.NewRequest(
 					http.MethodGet,
 					"test.com/foo",
@@ -529,7 +525,7 @@ func TestMock_AssertExpectations(t *testing.T) {
 			method: AnyMethod,
 			path:   "test.com/foo",
 			body:   nil,
-			httpRequest: mustNewRequest(
+			received: mustNewRequest(
 				http.NewRequest(
 					http.MethodPost,
 					"test.com/foo",
@@ -542,7 +538,7 @@ func TestMock_AssertExpectations(t *testing.T) {
 			method: http.MethodGet,
 			path:   "test.com/foo?page=2",
 			body:   nil,
-			httpRequest: mustNewRequest(
+			received: mustNewRequest(
 				http.NewRequest(
 					http.MethodGet,
 					"test.com/foo?page=2",
@@ -555,7 +551,7 @@ func TestMock_AssertExpectations(t *testing.T) {
 			method: http.MethodPost,
 			path:   "test.com/foo",
 			body:   []byte(`{"baz": "quz"}`),
-			httpRequest: mustNewRequest(
+			received: mustNewRequest(
 				http.NewRequest(
 					http.MethodPost,
 					"test.com/foo",
@@ -575,7 +571,7 @@ func TestMock_AssertExpectations(t *testing.T) {
 			assert.False(t, m.AssertExpectations(mockT))
 
 			// Test
-			m.Requested(tt.httpRequest)
+			m.Requested(tt.received)
 
 			// Assertions
 			assert.True(t, m.AssertExpectations(mockT))
@@ -592,28 +588,15 @@ func TestMock_AssertExpectations_Multiple(t *testing.T) {
 	mockT := new(MockTestingT)
 	assert.False(t, m.AssertExpectations(mockT))
 
-	httpRequest := mustNewRequest(
-		http.NewRequest(
-			http.MethodGet,
-			"test.com/foo/1234",
-			http.NoBody,
-		),
-	)
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "test.com/foo/1234", http.NoBody))
 
-	// Test
-	m.Requested(httpRequest)
+	// Test and Assertions
+	m.Requested(received)
 	assert.False(t, m.AssertExpectations(mockT))
 
-	httpRequest = mustNewRequest(
-		http.NewRequest(
-			http.MethodDelete,
-			"test.com/foo/1234",
-			http.NoBody,
-		),
-	)
-	m.Requested(httpRequest)
+	received = mustNewRequest(http.NewRequest(http.MethodDelete, "test.com/foo/1234", http.NoBody))
+	m.Requested(received)
 
-	// Assertions
 	assert.True(t, m.AssertExpectations(mockT))
 }
 
@@ -625,16 +608,10 @@ func TestMock_AssertExpectations_Once(t *testing.T) {
 	mockT := new(MockTestingT)
 	assert.False(t, m.AssertExpectations(mockT))
 
-	httpRequest := mustNewRequest(
-		http.NewRequest(
-			http.MethodGet,
-			"test.com/foo/1234",
-			http.NoBody,
-		),
-	)
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "test.com/foo/1234", http.NoBody))
 
 	// Test
-	m.Requested(httpRequest)
+	m.Requested(received)
 
 	// Assertions
 	assert.True(t, m.AssertExpectations(mockT))
@@ -648,21 +625,14 @@ func TestMock_AssertExpectations_Twice(t *testing.T) {
 	mockT := new(MockTestingT)
 	assert.False(t, m.AssertExpectations(mockT))
 
-	httpRequest := mustNewRequest(
-		http.NewRequest(
-			http.MethodGet,
-			"test.com/foo/1234",
-			http.NoBody,
-		),
-	)
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "test.com/foo/1234", http.NoBody))
 
-	// Test
-	m.Requested(httpRequest)
+	// Test and Assertions
+	m.Requested(received)
 	assert.False(t, m.AssertExpectations(mockT))
 
-	m.Requested(httpRequest)
+	m.Requested(received)
 
-	// Assertions
 	assert.True(t, m.AssertExpectations(mockT))
 }
 
@@ -674,21 +644,14 @@ func TestMock_AssertExpectations_Repeatability(t *testing.T) {
 	mockT := new(MockTestingT)
 	assert.False(t, m.AssertExpectations(mockT))
 
-	httpRequest := mustNewRequest(
-		http.NewRequest(
-			http.MethodGet,
-			"test.com/foo/1234",
-			http.NoBody,
-		),
-	)
+	received := mustNewRequest(http.NewRequest(http.MethodGet, "test.com/foo/1234", http.NoBody))
 
-	// Test
-	m.Requested(httpRequest)
+	// Test and Assertions
+	m.Requested(received)
 	assert.True(t, m.AssertExpectations(mockT))
 
-	m.Requested(httpRequest)
+	m.Requested(received)
 
-	// Assertions
 	assert.True(t, m.AssertExpectations(mockT))
 }
 
@@ -760,9 +723,9 @@ func TestMock_AssertNumberOfRequests_Mismatch(t *testing.T) {
 					t.Fatalf("unexpected error parsing request path: %v", err)
 				}
 
-				r := newRequest(m, method, u, nil)
+				expected := newRequest(m, method, u, nil)
 
-				m.Requests = append(m.Requests, *r)
+				m.Requests = append(m.Requests, *expected)
 			}
 
 			// Test
@@ -873,9 +836,9 @@ func TestMock_AssertNumberOfRequests(t *testing.T) {
 					t.Fatalf("unexpected error parsing request path: %v", err)
 				}
 
-				r := newRequest(m, method, u, nil)
+				expected := newRequest(m, method, u, nil)
 
-				m.Requests = append(m.Requests, *r)
+				m.Requests = append(m.Requests, *expected)
 			}
 
 			// Test
@@ -933,7 +896,7 @@ func TestMock_AssertRequested_NoMatch(t *testing.T) {
 			name:   "wrong-body",
 			method: http.MethodGet,
 			path:   "https://test.com/foo/1234?limit=2",
-			body:   []byte(`Hello World!`),
+			body:   []byte(testBody),
 		},
 	}
 
@@ -948,16 +911,11 @@ func TestMock_AssertRequested_NoMatch(t *testing.T) {
 				t.Fatalf("unexpected error parsing request path: %v", err)
 			}
 
-			r := newRequest(m, tt.method, u, tt.body)
-			m.Requests = append(m.Requests, *r)
+			actual := newRequest(m, tt.method, u, tt.body)
+			m.Requests = append(m.Requests, *actual)
 
 			// Test
-			got := m.AssertRequested(
-				mockT,
-				http.MethodGet,
-				"https://test.com/foo/1234",
-				nil,
-			)
+			got := m.AssertRequested(mockT, http.MethodGet, "https://test.com/foo/1234", nil)
 
 			// Assertions
 			assert.False(t, got)
@@ -975,16 +933,11 @@ func TestMock_AssertRequested(t *testing.T) {
 		t.Fatalf("unexpected error parsing request path: %v", err)
 	}
 
-	r := newRequest(m, http.MethodPut, u, []byte(`Hello World!`))
-	m.Requests = append(m.Requests, *r)
+	actual := newRequest(m, http.MethodPut, u, []byte(testBody))
+	m.Requests = append(m.Requests, *actual)
 
 	// Test
-	got := m.AssertRequested(
-		mockT,
-		http.MethodPut,
-		"https://test.com/foo/1234",
-		[]byte(`Hello World!`),
-	)
+	got := m.AssertRequested(mockT, http.MethodPut, "https://test.com/foo/1234", []byte(testBody))
 
 	// Assertions
 	assert.True(t, got)
@@ -1023,16 +976,11 @@ func TestMock_AssertNotRequested_NoMatch(t *testing.T) {
 		t.Fatalf("unexpected error parsing request path: %v", err)
 	}
 
-	r := newRequest(m, http.MethodPut, u, []byte(`Hello World!`))
-	m.Requests = append(m.Requests, *r)
+	actual := newRequest(m, http.MethodPut, u, []byte(testBody))
+	m.Requests = append(m.Requests, *actual)
 
 	// Test
-	got := m.AssertNotRequested(
-		mockT,
-		http.MethodPut,
-		"https://test.com/foo/1234",
-		[]byte(`Hello World!`),
-	)
+	got := m.AssertNotRequested(mockT, http.MethodPut, "https://test.com/foo/1234", []byte(testBody))
 
 	// Assertions
 	assert.False(t, got)
@@ -1061,7 +1009,7 @@ func TestMock_AssertNotRequested(t *testing.T) {
 			name:   "wrong-body",
 			method: http.MethodGet,
 			path:   "https://test.com/foo/1234?limit=2",
-			body:   []byte(`Hello World!`),
+			body:   []byte(testBody),
 		},
 	}
 
@@ -1076,16 +1024,11 @@ func TestMock_AssertNotRequested(t *testing.T) {
 				t.Fatalf("unexpected error parsing request path: %v", err)
 			}
 
-			r := newRequest(m, tt.method, u, tt.body)
-			m.Requests = append(m.Requests, *r)
+			actual := newRequest(m, tt.method, u, tt.body)
+			m.Requests = append(m.Requests, *actual)
 
 			// Test
-			got := m.AssertNotRequested(
-				mockT,
-				http.MethodGet,
-				"https://test.com/foo/1234",
-				nil,
-			)
+			got := m.AssertNotRequested(mockT, http.MethodGet, "https://test.com/foo/1234", nil)
 
 			// Assertions
 			assert.True(t, got)

@@ -45,17 +45,11 @@ func TestServer_handler_NoMatch(t *testing.T) {
 	// Setup
 	s := NewServer().Recoverable()
 	defer s.Close()
-	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(`Hello World!`))
+	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody))
 
 	// Test
-	request := mustNewRequest(
-		http.NewRequest(
-			http.MethodDelete,
-			fmt.Sprintf("%s/foo/1234", s.URL),
-			http.NoBody,
-		),
-	)
-	got, err := s.Client().Do(request)
+	test := mustNewRequest(http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/foo/1234", s.URL), http.NoBody))
+	got, err := s.Client().Do(test)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,17 +64,11 @@ func TestServer_handler_AssertRequested(t *testing.T) {
 	// Setup
 	s := NewServer().Recoverable()
 	defer s.Close()
-	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(`Hello World!`))
+	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody))
 
 	// Test
-	request := mustNewRequest(
-		http.NewRequest(
-			http.MethodGet,
-			fmt.Sprintf("%s/foo/1234", s.URL),
-			http.NoBody,
-		),
-	)
-	got, err := s.Client().Do(request)
+	test := mustNewRequest(http.NewRequest(http.MethodGet, fmt.Sprintf("%s/foo/1234", s.URL), http.NoBody))
+	got, err := s.Client().Do(test)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +82,7 @@ func TestServer_handler_AssertRequested(t *testing.T) {
 	// Assertions
 	assert.NotNil(t, got)
 	assert.Equal(t, http.StatusOK, got.StatusCode)
-	assert.Equal(t, []byte(`Hello World!`), gotBody)
+	assert.Equal(t, []byte(testBody), gotBody)
 	s.Mock.AssertRequested(t, http.MethodGet, "/foo/1234", nil)
 }
 
@@ -102,7 +90,7 @@ func TestServer_handler_AssertNotRequested(t *testing.T) {
 	// Setup
 	s := NewServer().Recoverable()
 	defer s.Close()
-	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(`Hello World!`))
+	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody))
 
 	// Test and Assertions
 	s.Mock.AssertNotRequested(t, http.MethodDelete, fmt.Sprintf("%s/foo/1234", s.URL), nil)
@@ -113,8 +101,8 @@ func TestServer_handler_AssertExpectations(t *testing.T) {
 	s := NewServer().Recoverable()
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).Respond(http.StatusNotFound, nil).Twice()
-	s.On(http.MethodPut, "/foo/1234", []byte(`Hello World!`)).RespondNoContent()
-	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(`Hello World!`)).Once()
+	s.On(http.MethodPut, "/foo/1234", []byte(testBody)).RespondNoContent()
+	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody)).Once()
 	s.On(http.MethodDelete, "/foo/1234", nil).RespondNoContent()
 	s.On(http.MethodGet, "/foo/1234", nil).Respond(http.StatusNotFound, nil)
 
@@ -135,7 +123,7 @@ func TestServer_handler_AssertExpectations(t *testing.T) {
 	got.Body.Close()
 	assert.Equal(t, http.StatusNotFound, got.StatusCode)
 
-	putRequest1 := mustNewRequest(http.NewRequest(http.MethodPut, fmt.Sprintf("%s/foo/1234", s.URL), strings.NewReader(`Hello World!`)))
+	putRequest1 := mustNewRequest(http.NewRequest(http.MethodPut, fmt.Sprintf("%s/foo/1234", s.URL), strings.NewReader(testBody)))
 	got, err = s.Client().Do(putRequest1)
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +141,7 @@ func TestServer_handler_AssertExpectations(t *testing.T) {
 		t.Fatal(err)
 	}
 	got.Body.Close()
-	assert.Equal(t, []byte(`Hello World!`), gotBody)
+	assert.Equal(t, []byte(testBody), gotBody)
 	assert.Equal(t, http.StatusOK, got.StatusCode)
 
 	deleteRequest1 := mustNewRequest(http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/foo/1234", s.URL), http.NoBody))
@@ -180,8 +168,8 @@ func TestServer_handler_AssertNumberOfRequests(t *testing.T) {
 	s := NewServer().Recoverable()
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).Respond(http.StatusNotFound, nil).Twice()
-	s.On(http.MethodPut, "/foo/1234", []byte(`Hello World!`)).RespondNoContent()
-	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(`Hello World!`)).Once()
+	s.On(http.MethodPut, "/foo/1234", []byte(testBody)).RespondNoContent()
+	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody)).Once()
 	s.On(http.MethodDelete, "/foo/1234", nil).RespondNoContent()
 	s.On(http.MethodDelete, "/bars", nil).Respond(http.StatusBadRequest, nil)
 	s.On(http.MethodGet, "/foo/1234", nil).Respond(http.StatusNotFound, nil)
@@ -203,7 +191,7 @@ func TestServer_handler_AssertNumberOfRequests(t *testing.T) {
 	got.Body.Close()
 	assert.Equal(t, http.StatusNotFound, got.StatusCode)
 
-	putRequest1 := mustNewRequest(http.NewRequest(http.MethodPut, fmt.Sprintf("%s/foo/1234", s.URL), strings.NewReader(`Hello World!`)))
+	putRequest1 := mustNewRequest(http.NewRequest(http.MethodPut, fmt.Sprintf("%s/foo/1234", s.URL), strings.NewReader(testBody)))
 	got, err = s.Client().Do(putRequest1)
 	if err != nil {
 		t.Fatal(err)
@@ -221,7 +209,7 @@ func TestServer_handler_AssertNumberOfRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	got.Body.Close()
-	assert.Equal(t, []byte(`Hello World!`), gotBody)
+	assert.Equal(t, []byte(testBody), gotBody)
 	assert.Equal(t, http.StatusOK, got.StatusCode)
 
 	deleteRequest1 := mustNewRequest(http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/foo/1234", s.URL), http.NoBody))
