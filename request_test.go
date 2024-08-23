@@ -66,7 +66,7 @@ func Test_newRequest(t *testing.T) {
 			method: AnyMethod,
 			url:    "https://test.com/foo",
 			want: &Request{
-				method: AnyMethod,
+				method: "httpmock.AnyMethod",
 				url: &url.URL{
 					Scheme: "https",
 					Host:   "test.com",
@@ -87,6 +87,21 @@ func Test_newRequest(t *testing.T) {
 					Path:   "/foo",
 				},
 				body: []byte(testBody),
+			},
+		},
+		{
+			name:   "any-body",
+			method: http.MethodGet,
+			url:    "https://test.com/foo",
+			body:   AnyBody,
+			want: &Request{
+				method: "GET",
+				url: &url.URL{
+					Scheme: "https",
+					Host:   "test.com",
+					Path:   "/foo",
+				},
+				body: []byte("httpmock.AnyBody"),
 			},
 		},
 		{
@@ -273,55 +288,55 @@ func TestRequest_diffMethod(t *testing.T) {
 			wantDifferences: true,
 		},
 		{
-			name:            "anymethod-connect",
+			name:            "any-method-connect",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodConnect},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-delete",
+			name:            "any-method-delete",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodDelete},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-get",
+			name:            "any-method-get",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodGet},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-head",
+			name:            "any-method-head",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodHead},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-options",
+			name:            "any-method-options",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodOptions},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-patch",
+			name:            "any-method-patch",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodPatch},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-post",
+			name:            "any-method-post",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodPost},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-put",
+			name:            "any-method-put",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodPut},
 			wantDifferences: false,
 		},
 		{
-			name:            "anymethod-trace",
+			name:            "any-method-trace",
 			request:         &Request{method: AnyMethod},
 			received:        &http.Request{Method: http.MethodTrace},
 			wantDifferences: false,
@@ -590,6 +605,24 @@ func TestRequest_diffBody(t *testing.T) {
 			received:        &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
 			wantDifferences: false,
 		},
+		{
+			name:            "any-body-no-received-body",
+			request:         &Request{body: AnyBody},
+			received:        &http.Request{Body: http.NoBody},
+			wantDifferences: false,
+		},
+		{
+			name:            "any-body-received-body",
+			request:         &Request{body: AnyBody},
+			received:        &http.Request{Body: io.NopCloser(strings.NewReader("Hello World!"))},
+			wantDifferences: false,
+		},
+		{
+			name:            "any-body-received-long-body",
+			request:         &Request{body: AnyBody},
+			received:        &http.Request{Body: io.NopCloser(bytes.NewBuffer(testLongBody))},
+			wantDifferences: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -775,7 +808,7 @@ URL: https://test.com/foo?limit=1#back
 Body: (12) Hello World!`,
 		},
 		{
-			name: "anymethod",
+			name: "any-method",
 			request: &Request{
 				method: AnyMethod,
 				url: &url.URL{
@@ -942,7 +975,7 @@ URL: https://test.com/foo?limit=1#back
 Body: (0) (Missing)`,
 		},
 		{
-			name: "missing-body",
+			name: "long-body",
 			request: &Request{
 				method: http.MethodGet,
 				url: &url.URL{
@@ -978,6 +1011,29 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 fffffffffffffffffffffffffffffffffffffffffffffffff...`,
+		},
+		{
+			name: "any-body",
+			request: &Request{
+				method: AnyMethod,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body: AnyBody,
+			},
+			want: `
+Method: (AnyMethod)
+URL: https://test.com/foo?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (X) (AnyBody)`,
 		},
 	}
 

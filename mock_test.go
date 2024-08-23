@@ -216,7 +216,7 @@ func TestMock_findExpectedRequest(t *testing.T) {
 			m := new(Mock)
 			m.On(http.MethodPatch, "https://test.com/bars/1234", []byte(`{"quz": "east"}`))
 			m.On(AnyMethod, "https://test.com/foo", nil)
-			m.On(http.MethodGet, "https://test.com/bars/1234?limit=1", nil)
+			m.On(http.MethodGet, "https://test.com/bars/1234?limit=1", AnyBody)
 			m.On(http.MethodPut, "https://test.com/bars/1234", nil)
 
 			// Test
