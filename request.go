@@ -17,12 +17,14 @@ var (
 	ErrReadBody = errors.New("error reading body")
 
 	AnyMethod = "mock.AnyMethod"
+	AnyBody   = []byte("mock.AnyBody")
 
 	cmpoptSortMaps                  = cmpopts.SortMaps(func(a, b string) bool { return a < b })
 	cmpoptSortSlices                = cmpopts.SortSlices(func(a, b string) bool { return a < b })
 	cmpoptIgnoreURLRawQuery         = cmpopts.IgnoreFields(url.URL{}, "RawQuery")
 	cmpoptIgnoreURLUnexportedFields = cmpopts.IgnoreUnexported(url.URL{})
 
+	fmtAnyBody  = "(AnyBody)"
 	fmtMissing  = "(Missing)"
 	fmtNotEqual = "!="
 	fmtEqual    = "=="
@@ -348,11 +350,16 @@ func (r *Request) diffBody(received *http.Request) (string, int) {
 	if err != nil {
 		return err.Error(), 1
 	}
+	a := trimBody(otherBody)
+	alen := len(otherBody)
+
+	if string(r.body) == string(AnyBody) {
+		output = fmt.Sprintf("\t%d: PASS:  (X) %s == (0) %s\n", 2, fmtAnyBody, a)
+		return output, differences
+	}
 
 	e := trimBody(r.body)
 	elen := len(r.body)
-	a := trimBody(otherBody)
-	alen := len(otherBody)
 
 	eq := fmtEqual
 	if elen == 0 && alen == 0 {
@@ -440,9 +447,13 @@ func (r *Request) String() string {
 		output = append(output, fmt.Sprintf("\tFragment: %s", e))
 	}
 
-	e = trimBody(r.body)
-	elen := len(r.body)
-	output = append(output, fmt.Sprintf("Body: (%d) %s", elen, e))
+	if string(r.body) == string(AnyBody) {
+		e = fmtAnyBody
+		output = append(output, fmt.Sprintf("Body: (X) %s", fmtAnyBody))
+	} else {
+		e := trimBody(r.body)
+		output = append(output, fmt.Sprintf("Body: (%d) %s", len(r.body), e))
+	}
 
 	return strings.Join(output, "\n")
 }
