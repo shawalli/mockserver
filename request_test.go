@@ -66,7 +66,7 @@ func Test_newRequest(t *testing.T) {
 			method: AnyMethod,
 			url:    "https://test.com/foo",
 			want: &Request{
-				method: AnyMethod,
+				method: "httpmock.AnyMethod",
 				url: &url.URL{
 					Scheme: "https",
 					Host:   "test.com",
@@ -101,7 +101,7 @@ func Test_newRequest(t *testing.T) {
 					Host:   "test.com",
 					Path:   "/foo",
 				},
-				body: []byte("mock.AnyBody"),
+				body: []byte("httpmock.AnyBody"),
 			},
 		},
 		{

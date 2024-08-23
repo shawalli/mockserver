@@ -16,8 +16,8 @@ import (
 var (
 	ErrReadBody = errors.New("error reading body")
 
-	AnyMethod = "mock.AnyMethod"
-	AnyBody   = []byte("mock.AnyBody")
+	AnyMethod = "httpmock.AnyMethod"
+	AnyBody   = []byte("httpmock.AnyBody")
 
 	cmpoptSortMaps                  = cmpopts.SortMaps(func(a, b string) bool { return a < b })
 	cmpoptSortSlices                = cmpopts.SortSlices(func(a, b string) bool { return a < b })
