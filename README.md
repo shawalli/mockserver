@@ -58,7 +58,8 @@ go get github.com/shawalli/httpmock
 
 - [x] Extend `httptest.Server` to provide a single implementation
 - [ ] Request URL matcher
-- [ ] Request header matching
+- [x] Request matcher functions
+- [x] Request header matching (implemented with matcher functions feature)
 
 ## License
 
