@@ -188,6 +188,37 @@ Mock.On(http.MethodGet, "/some/path/1234").Respond(http.StatusNotFound, []byte(`
 In the future, more convenience methods may be added if they are common, clearly defined, and enhance the readability
 and simplification of the mock response configuration.
 
+#### RespondUsing
+
+If more complex functionality is needed than `Respond` can provide, `httpmock` allows for custom response
+implementations with this method. If `RespondUsing` is called, all of the other `Respond` configurations
+are ignored.
+
+```go
+// respWriter calculates the count based on the page and limit and returns these values in the response.
+respWriter := func(w http.ResponseWriter, r *http.Request) (int, error) {
+	v := r.URL.Query().Get("limit")
+
+	limit := 10
+	if v != "" {
+		limit, _ = strconv.Atoi(v)
+	}
+
+	v = r.URL.Query().Get("page")
+
+	var count, page int
+	if v != "" {
+		page, _ := strconv.Atoi(v)
+		count = limit * page
+	}
+
+	w.WriteHeader(http.StatusOK)
+	return w.Write([]byte(`{"count": %d, "page": %d, "limit": %d, "result": {...}}`, count, page, limit))
+}
+
+Mock.On(http.MethodGet, "/some/path/1234?page=3&limit=20", nil).RespondUsing(respWriter)
+```
+
 ### `httpmock.Server`
 
 #### Recoverable, IsRecoverable

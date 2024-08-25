@@ -117,6 +117,25 @@ func (r *Request) RespondNoContent() *Response {
 	return r.Respond(http.StatusNoContent, nil)
 }
 
+// RespondUsing overrides the [Respond] functionality by allowing a custom
+// writer to be invoked instead of the typical writing functionality.
+//
+// Note: The `writer“ is responsible for the entire response, including
+// headers, status code, and body.
+func (r *Request) RespondUsing(writer ResponseWriter) *Response {
+	resp := &Response{
+		parent: r,
+		writer: writer,
+	}
+
+	r.lock()
+	defer r.unlock()
+
+	r.response = resp
+
+	return resp
+}
+
 // Once indicates that the mock should only return the response once.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").Once()
