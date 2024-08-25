@@ -181,9 +181,8 @@ func (r *Request) Matches(matchers ...RequestMatcher) *Request {
 	return r
 }
 
-// readHTTPRequestBody reads the body of a HTTP request and resets the
-// request's body so that it may be read again afterward.
-func readHTTPRequestBody(received *http.Request) ([]byte, error) {
+// SafeReadBody reads the body of a HTTP request and resets the request's body so that it may be read again afterward.
+func SafeReadBody(received *http.Request) ([]byte, error) {
 	// Read request body and reset it for the next comparison
 	body, err := io.ReadAll(received.Body)
 	if err != nil {
@@ -392,7 +391,7 @@ func (r *Request) diffBody(received *http.Request) (string, int) {
 	var output string
 	var differences int
 
-	otherBody, err := readHTTPRequestBody(received)
+	otherBody, err := SafeReadBody(received)
 	if err != nil {
 		return err.Error(), 1
 	}

@@ -76,6 +76,11 @@ method.
 
 ## Features
 
+### SafeReadBody
+
+`httpmock.SafeReadBody` will read a `http.Request.Body` and resets the `http.Request.Body` with a fresh `io.Reader` so
+that subsequent logic may also read the body.
+
 ### `httpmock.Mock`
 
 #### On

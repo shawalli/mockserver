@@ -141,7 +141,7 @@ func (m *Mock) findClosestRequest(received *http.Request) (*Request, string) {
 func (m *Mock) Requested(received *http.Request) *Response {
 	m.mutex.Lock()
 
-	receivedBody, err := readHTTPRequestBody(received)
+	receivedBody, err := SafeReadBody(received)
 	if err != nil {
 		m.mutex.Unlock()
 		m.fail("\nassert: httpmock: Failed to read requested body. Error: %v", err)
