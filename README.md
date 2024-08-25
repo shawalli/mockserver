@@ -6,38 +6,52 @@ This package provides a mocking interface in the spirit of [`stretchr/testify/mo
 package yours
 
 import (
-    "net/http"
-    "testing"
-    "github.com/shawalli/httpmock"
+	"net/http"
+	"testing"
+	"github.com/shawalli/httpmock"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSomething(t *testing.T) {
-    // Setup default test server and handler to log requests and return expected responses
-    // You may also create your own test server, handler, and mock to manage this
-    ts := httpmock.NewServer()
-    defer ts.Close()
-    // Set as recoverable to log panics rather than propagate out from the server
-    // goroutine to the parent process
-    ts.Recoverable()
+	// Setup default test server and handler to log requests and return expected responses
+	// You may also create your own test server, handler, and mock to manage this
+	ts := httpmock.NewServer()
+	defer ts.Close()
+	// Set as recoverable to log panics rather than propagate out from the server
+	// goroutine to the parent process
+	ts.Recoverable()
 
-    // Configure request mocks
-    s.Mock.On(
-        http.MethodPatch,
-        fmt.Sprintf("%s/foo/1234?preview=true", server.URL),
-        []byte{`{"bar": "baz"}`}).
-    RespondOK([]byte(`Success!`)).
-    Once()
+	// Configure request mocks
+	ts.Mock.On(
+		http.MethodPatch,
+		"/foo/1234?preview=true",
+		[]byte(`{"bar": "baz"}`)).
+	RespondOK([]byte(`Success!`)).
+	Once()
 
-    // Test application code
-    c := ts.Client()
-    res, err := c.Patch("/foo/1234?preview=true", io.NopCloser(strings.NewReader(`{"bar": "baz"}`)))
+	// Test application code
+	tc := ts.Client()
+	req, err := http.NewRequest(
+		http.MethodPatch,
+		fmt.Sprintf("%s/foo/1234?preview=true", ts.URL),
+		io.NopCloser(strings.NewReader(`{"bar": "baz"}`)),
+	)
+	resp, err := tc.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request! %v", err)
+	}
 
-    // Assert application code
-    ...
+	// Assert application code
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to read response body! %v", err)
+	}
+	assert.Equal(t, "Success!", string(respBody))
 
-    // Assert httpmock expectations
-    s.Mock.AssertExpectations(t)
-    s.Mock.AssertNumberOfRequests(t, http.MethodPatch, "/foo/1234", 1)
+	// Assert httpmock expectations
+	ts.Mock.AssertExpectations(t)
+	ts.Mock.AssertNumberOfRequests(t, http.MethodPatch, "/foo/1234", 1)
 }
 ```
 
