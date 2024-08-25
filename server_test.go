@@ -241,3 +241,62 @@ func TestServer_handler_AssertNumberOfRequests(t *testing.T) {
 	s.Mock.AssertNumberOfRequests(t, http.MethodDelete, "/bars", 1)
 	s.Mock.AssertNumberOfRequests(t, http.MethodDelete, "/foo/1234", 1)
 }
+
+// TestSomething is the example given in the documentation.
+//
+// Let's keep it as a real test to ensure it actually works!
+func TestSomething(t *testing.T) {
+	// Setup default test server and handler to log requests and return expected responses
+	// You may also create your own test server, handler, and mock to manage this
+	ts := NewServer()
+	defer ts.Close()
+	// Set as recoverable to log panics rather than propagate out from the server
+	// goroutine to the parent process
+	ts.Recoverable()
+
+	// Configure request mocks
+	expectBearerToken := func(received *http.Request) (output string, differences int) {
+		if _, ok := received.Header["Authorization"]; !ok {
+			output = "FAIL:  missing header Authorization"
+			differences = 1
+			return
+		}
+		val := received.Header.Get("Authorization")
+		if !strings.HasPrefix(val, "Bearer ") {
+			output = fmt.Sprintf("FAIL:  header Authorization=%v != Bearer", val)
+			differences = 1
+			return
+		}
+		output = fmt.Sprintf("PASS:  header Authorization=%v == Bearer", val)
+		return
+	}
+	ts.On(http.MethodPatch, "/foo/1234", []byte(`{"bar": "baz"}`)).
+		Matches(expectBearerToken).
+		RespondOK([]byte(`Success!`)).
+		Once()
+
+	// Test application code
+	tc := ts.Client()
+	req, err := http.NewRequest(
+		http.MethodPatch,
+		fmt.Sprintf("%s/foo/1234", ts.URL),
+		io.NopCloser(strings.NewReader(`{"bar": "baz"}`)),
+	)
+	req.Header.Add("Authorization", "Bearer jkel3450d")
+	resp, err := tc.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request! %v", err)
+	}
+
+	// Assert application expectations
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to read response body! %v", err)
+	}
+	assert.Equal(t, "Success!", string(respBody))
+
+	// Assert httpmock expectations
+	ts.Mock.AssertExpectations(t)
+	ts.Mock.AssertNumberOfRequests(t, http.MethodPatch, "/foo/1234", 1)
+}
