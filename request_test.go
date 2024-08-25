@@ -227,17 +227,6 @@ func TestRequest_RespondNoContent(t *testing.T) {
 	assert.Equal(t, got, r.response)
 }
 
-func TestRequest_Times(t *testing.T) {
-	// Setup
-	r := Request{parent: new(Mock)}
-
-	// Test
-	r.Times(4)
-
-	// Assertions
-	assert.Equal(t, 4, r.repeatability)
-}
-
 func TestRequest_Once(t *testing.T) {
 	// Setup
 	r := Request{parent: new(Mock)}
@@ -258,6 +247,57 @@ func TestRequest_Twice(t *testing.T) {
 
 	// Assertions
 	assert.Equal(t, 2, r.repeatability)
+}
+
+func TestRequest_Times(t *testing.T) {
+	// Setup
+	r := Request{parent: new(Mock)}
+
+	// Test
+	r.Times(4)
+
+	// Assertions
+	assert.Equal(t, 4, r.repeatability)
+}
+
+func TestRequest_Matches(t *testing.T) {
+	// Setup
+	r := Request{parent: new(Mock)}
+
+	match1 := func(received *http.Request) (output string, differences int) {
+		return "match1", 0
+	}
+	match2 := func(received *http.Request) (output string, differences int) {
+		return "match2", 1
+	}
+	match3 := func(received *http.Request) (output string, differences int) {
+		return "match3", 2
+	}
+	match4 := func(received *http.Request) (output string, differences int) {
+		return "match4", 3
+	}
+
+	// Test
+	r.Matches(match1).Matches(match4, match3).Matches(match2)
+
+	// Assertions
+	assert.Len(t, r.matchers, 4)
+	want := [][]any{
+		{"match1", 0},
+		{"match4", 3},
+		{"match3", 2},
+		{"match2", 1},
+	}
+	for i, m := range r.matchers {
+		w := want[i]
+		wantOutput := w[0]
+		wantDifferences := w[1]
+
+		gotOutput, gotDifferences := m(&http.Request{})
+
+		assert.Equal(t, wantOutput, gotOutput)
+		assert.Equal(t, wantDifferences, gotDifferences)
+	}
 }
 
 func TestRequest_diffMethod(t *testing.T) {
@@ -588,6 +628,12 @@ func TestRequest_diffBody(t *testing.T) {
 			wantDifferences: false,
 		},
 		{
+			name:            "same-bodies",
+			request:         &Request{body: []byte("Hello World!")},
+			received:        &http.Request{Body: io.NopCloser(strings.NewReader("Hello World!"))},
+			wantDifferences: false,
+		},
+		{
 			name:            "long-request-body",
 			request:         &Request{body: testLongBody},
 			received:        &http.Request{Body: io.NopCloser(strings.NewReader("Hello World!"))},
@@ -635,6 +681,21 @@ func TestRequest_diffBody(t *testing.T) {
 			assert.Equal(t, tt.wantDifferences, gotDifferences != 0)
 		})
 	}
+}
+
+func testRequestMatcherAlwaysPass(received *http.Request) (output string, differences int) {
+	return "PASS:  GOOD == GOOD", 0
+}
+
+func testRequestMatcherAlwaysFail(received *http.Request) (output string, differences int) {
+	return "PASS:  BAD != GOOD", 1
+}
+
+func testRequestMatcherSometimesPass(received *http.Request) (output string, differences int) {
+	if received.Method == http.MethodGet {
+		return "PASS:  GOOD == GOOD", 0
+	}
+	return "FAIL:  BAD != GOOD", 1
 }
 
 func TestRequest_diff(t *testing.T) {
@@ -714,6 +775,34 @@ func TestRequest_diff(t *testing.T) {
 			wantDifferences: 1,
 		},
 		{
+			name: "matcher",
+			request: &Request{
+				method:   http.MethodPost,
+				url:      &url.URL{Path: "test.com/foo"},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysFail},
+			},
+			received: &http.Request{
+				Method: http.MethodPost,
+				URL:    &url.URL{Path: "test.com/foo"},
+				Body:   http.NoBody,
+			},
+			wantDifferences: 1,
+		},
+		{
+			name: "matchers",
+			request: &Request{
+				method:   http.MethodPost,
+				url:      &url.URL{Path: "test.com/foo"},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysFail, testRequestMatcherSometimesPass},
+			},
+			received: &http.Request{
+				Method: http.MethodPost,
+				URL:    &url.URL{Path: "test.com/foo"},
+				Body:   http.NoBody,
+			},
+			wantDifferences: 2,
+		},
+		{
 			name: "method-query",
 			request: &Request{
 				method: http.MethodPost,
@@ -731,6 +820,28 @@ func TestRequest_diff(t *testing.T) {
 					Host:     "test.com",
 					Path:     "/foo",
 					RawQuery: "page=3&limit=10",
+				},
+				Body: http.NoBody,
+			},
+			wantDifferences: 2,
+		},
+		{
+			name: "method-matcher",
+			request: &Request{
+				method: http.MethodPost,
+				url: &url.URL{
+					Scheme: "https",
+					Host:   "test.com",
+					Path:   "/foo",
+				},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysPass, testRequestMatcherSometimesPass},
+			},
+			received: &http.Request{
+				Method: http.MethodPut,
+				URL: &url.URL{
+					Scheme: "https",
+					Host:   "test.com",
+					Path:   "/foo",
 				},
 				Body: http.NoBody,
 			},
@@ -1034,6 +1145,57 @@ URL: https://test.com/foo?limit=1#back
 	Query: limit=1
 	Fragment: back
 Body: (X) (AnyBody)`,
+		},
+		{
+			name: "matcher",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body:     []byte(testBody),
+				matchers: []RequestMatcher{testRequestMatcherAlwaysPass},
+			},
+			want: `
+Method: GET
+URL: https://test.com/foo?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (12) Hello World!
+Matcher[0]: github.com/shawalli/httpmock.testRequestMatcherAlwaysPass`,
+		},
+		{
+			name: "matchers",
+			request: &Request{
+				method: http.MethodGet,
+				url: &url.URL{
+					Scheme:   "https",
+					Host:     "test.com",
+					Path:     "/foo",
+					RawQuery: "limit=1",
+					Fragment: "back",
+				},
+				body:     []byte(testBody),
+				matchers: []RequestMatcher{testRequestMatcherAlwaysPass, testRequestMatcherAlwaysFail},
+			},
+			want: `
+Method: GET
+URL: https://test.com/foo?limit=1#back
+	Scheme: https
+	Host: test.com
+	Path: /foo
+	Query: limit=1
+	Fragment: back
+Body: (12) Hello World!
+Matcher[0]: github.com/shawalli/httpmock.testRequestMatcherAlwaysPass
+Matcher[1]: github.com/shawalli/httpmock.testRequestMatcherAlwaysFail`,
 		},
 	}
 

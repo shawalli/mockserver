@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
+	"runtime"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
@@ -30,6 +32,9 @@ var (
 	fmtEqual    = "=="
 )
 
+// RequestMatcher is used by the `Request.Matches` method to match a HTTP request.
+type RequestMatcher func(received *http.Request) (output string, differences int)
+
 // Request represents a HTTP request and is used for setting expectations,
 // as well as recording activity.
 type Request struct {
@@ -44,6 +49,9 @@ type Request struct {
 
 	// The body that was or will be requested.
 	body []byte
+
+	// List of RequestMatcher functions to run against any received request.
+	matchers []RequestMatcher
 
 	// Holds the parts of the response that should be returned when setting
 	// this request is received.
@@ -132,6 +140,44 @@ func (r *Request) Times(i int) *Request {
 	defer r.unlock()
 
 	r.repeatability = i
+	return r
+}
+
+// Matches adds one or more RequestMatcher's to the Request. RequestMatcher's are called
+// in FIFO order after the HTTP method, URL, and body have been matched.
+//
+//	func queryAtLeast(key string, minValue int) RequestMatcher {
+//		fn := func(received *http.Request) (output string, differences int) {
+//			v := received.URL.Query().Get(key)
+//			if v == "" {
+//				output = fmt.Sprintf("FAIL:  queryAtLeast: (Missing) ((%s)) != %s", received.URL.Query().Encode(), key)
+//				differences = 1
+//				return
+//			}
+//			val, err := strconv.Atoi(v)
+//			if err != nil {
+//				output = fmt.Sprintf("FAIL:  queryAtLeast: %s value %q unable to coerce to int", key, v)
+//				differences = 1
+//				return
+//			}
+//			if val < minValue {
+//				output = fmt.Sprintf("FAIL:  queryAtLeast: %d < %d", val, minValue)
+//				differences = 1
+//				return
+//			}
+//			output = fmt.Sprintf("PASS:  queryAtLeast: %d >= %d", val, minValue)
+//			return
+//		}
+//
+//		return fn
+//	}
+//
+//	Mock.On(http.MethodGet, "/some/path/1234", nil).Matches(queryAtLeast("page", 2))
+func (r *Request) Matches(matchers ...RequestMatcher) *Request {
+	r.lock()
+	defer r.unlock()
+
+	r.matchers = append(r.matchers, matchers...)
 	return r
 }
 
@@ -396,6 +442,15 @@ func (r *Request) diff(received *http.Request) (string, int) {
 	output += o
 	differences += d
 
+	// 0, 1, and 2 are reserved for HTTP method, URL, and body
+	baseMatchIndex := 3
+	for i, fn := range r.matchers {
+		o, d := fn(received)
+
+		output += fmt.Sprintf("\t%d: %s\n", (baseMatchIndex + i), o)
+		differences += d
+	}
+
 	return output, differences
 }
 
@@ -453,6 +508,11 @@ func (r *Request) String() string {
 	} else {
 		e := trimBody(r.body)
 		output = append(output, fmt.Sprintf("Body: (%d) %s", len(r.body), e))
+	}
+
+	for i, fn := range r.matchers {
+		fnName := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+		output = append(output, fmt.Sprintf("Matcher[%d]: %s", i, fnName))
 	}
 
 	return strings.Join(output, "\n")
