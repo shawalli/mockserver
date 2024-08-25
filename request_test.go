@@ -683,15 +683,15 @@ func TestRequest_diffBody(t *testing.T) {
 	}
 }
 
-func testMatcherAlwaysPass(received *http.Request) (output string, differences int) {
+func testRequestMatcherAlwaysPass(received *http.Request) (output string, differences int) {
 	return "PASS:  GOOD == GOOD", 0
 }
 
-func testMatcherAlwaysFail(received *http.Request) (output string, differences int) {
+func testRequestMatcherAlwaysFail(received *http.Request) (output string, differences int) {
 	return "PASS:  BAD != GOOD", 1
 }
 
-func testMatcherSometimesPass(received *http.Request) (output string, differences int) {
+func testRequestMatcherSometimesPass(received *http.Request) (output string, differences int) {
 	if received.Method == http.MethodGet {
 		return "PASS:  GOOD == GOOD", 0
 	}
@@ -779,7 +779,7 @@ func TestRequest_diff(t *testing.T) {
 			request: &Request{
 				method:   http.MethodPost,
 				url:      &url.URL{Path: "test.com/foo"},
-				matchers: []MatcherFn{testMatcherAlwaysFail},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysFail},
 			},
 			received: &http.Request{
 				Method: http.MethodPost,
@@ -793,7 +793,7 @@ func TestRequest_diff(t *testing.T) {
 			request: &Request{
 				method:   http.MethodPost,
 				url:      &url.URL{Path: "test.com/foo"},
-				matchers: []MatcherFn{testMatcherAlwaysFail, testMatcherSometimesPass},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysFail, testRequestMatcherSometimesPass},
 			},
 			received: &http.Request{
 				Method: http.MethodPost,
@@ -834,7 +834,7 @@ func TestRequest_diff(t *testing.T) {
 					Host:   "test.com",
 					Path:   "/foo",
 				},
-				matchers: []MatcherFn{testMatcherAlwaysPass, testMatcherSometimesPass},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysPass, testRequestMatcherSometimesPass},
 			},
 			received: &http.Request{
 				Method: http.MethodPut,
@@ -1158,7 +1158,7 @@ Body: (X) (AnyBody)`,
 					Fragment: "back",
 				},
 				body:     []byte(testBody),
-				matchers: []MatcherFn{testMatcherAlwaysPass},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysPass},
 			},
 			want: `
 Method: GET
@@ -1169,7 +1169,7 @@ URL: https://test.com/foo?limit=1#back
 	Query: limit=1
 	Fragment: back
 Body: (12) Hello World!
-Matcher[0]: github.com/shawalli/httpmock.testMatcherAlwaysPass`,
+Matcher[0]: github.com/shawalli/httpmock.testRequestMatcherAlwaysPass`,
 		},
 		{
 			name: "matchers",
@@ -1183,7 +1183,7 @@ Matcher[0]: github.com/shawalli/httpmock.testMatcherAlwaysPass`,
 					Fragment: "back",
 				},
 				body:     []byte(testBody),
-				matchers: []MatcherFn{testMatcherAlwaysPass, testMatcherAlwaysFail},
+				matchers: []RequestMatcher{testRequestMatcherAlwaysPass, testRequestMatcherAlwaysFail},
 			},
 			want: `
 Method: GET
@@ -1194,8 +1194,8 @@ URL: https://test.com/foo?limit=1#back
 	Query: limit=1
 	Fragment: back
 Body: (12) Hello World!
-Matcher[0]: github.com/shawalli/httpmock.testMatcherAlwaysPass
-Matcher[1]: github.com/shawalli/httpmock.testMatcherAlwaysFail`,
+Matcher[0]: github.com/shawalli/httpmock.testRequestMatcherAlwaysPass
+Matcher[1]: github.com/shawalli/httpmock.testRequestMatcherAlwaysFail`,
 		},
 	}
 

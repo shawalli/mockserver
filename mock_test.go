@@ -116,7 +116,7 @@ func TestMock_On(t *testing.T) {
 }
 
 func TestMock_findExpectedRequest_Fail(t *testing.T) {
-	matcherRequireNextToken := func(received *http.Request) (output string, differences int) {
+	requestMatcherRequireNextToken := func(received *http.Request) (output string, differences int) {
 		if ok := received.URL.Query().Has("next"); !ok {
 			output = fmt.Sprintf("FAIL:  missing query-parameter next ((%s))", received.URL.Query().Encode())
 			differences = 1
@@ -126,7 +126,7 @@ func TestMock_findExpectedRequest_Fail(t *testing.T) {
 		return
 	}
 
-	matcherRequirePageToken := func(received *http.Request) (output string, differences int) {
+	requestMatcherRequirePageToken := func(received *http.Request) (output string, differences int) {
 		if ok := received.URL.Query().Has("page"); !ok {
 			output = fmt.Sprintf("FAIL:  missing query-parameter page ((%s))", received.URL.Query().Encode())
 			differences = 1
@@ -169,11 +169,11 @@ func TestMock_findExpectedRequest_Fail(t *testing.T) {
 			request: mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/bars/1234", io.NopCloser(strings.NewReader(`{"quz": "west"}`)))),
 		},
 		{
-			name:    "fail-matcher",
+			name:    "fail-request-matcher",
 			request: mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/bars/5678", http.NoBody)),
 		},
 		{
-			name:    "fail-one-matcher",
+			name:    "fail-one-request-matcher",
 			request: mustNewRequest(http.NewRequest(http.MethodPut, "https://test.com/bars/5678", http.NoBody)),
 		},
 	}
@@ -186,8 +186,8 @@ func TestMock_findExpectedRequest_Fail(t *testing.T) {
 			m.On(http.MethodGet, "https://test.com/bars/1234?limit=1", nil)
 			m.On(http.MethodGet, "https://test.com/bars/1234?limit=100&page=2", nil)
 			m.On(http.MethodPut, "https://test.com/bars/1234", nil)
-			m.On(http.MethodPut, "https://test.com/bars/5678", nil).Matches(matcherRequireNextToken)
-			m.On(http.MethodPut, "https://test.com/bars/5678?next=1234", nil).Matches(matcherRequireNextToken, matcherRequirePageToken)
+			m.On(http.MethodPut, "https://test.com/bars/5678", nil).Matches(requestMatcherRequireNextToken)
+			m.On(http.MethodPut, "https://test.com/bars/5678?next=1234", nil).Matches(requestMatcherRequireNextToken, requestMatcherRequirePageToken)
 
 			// Test
 			gotIndex, gotExpectedRequest := m.findExpectedRequest(tt.request)
@@ -215,7 +215,7 @@ func TestMock_findExpectedRequest_TooManyRepeats(t *testing.T) {
 }
 
 func TestMock_findExpectedRequest(t *testing.T) {
-	matcherLimitAtLeastTwo := func(received *http.Request) (output string, differences int) {
+	requestMatcherLimitAtLeastTwo := func(received *http.Request) (output string, differences int) {
 		if ok := received.URL.Query().Has("limit"); !ok {
 			output = fmt.Sprintf("FAIL:  missing query-parameter limit ((%s))", received.URL.Query().Encode())
 			differences = 1
@@ -264,7 +264,7 @@ func TestMock_findExpectedRequest(t *testing.T) {
 			wantIndex: 0,
 		},
 		{
-			name:      "matcher",
+			name:      "request-matcher",
 			request:   mustNewRequest(http.NewRequest(http.MethodGet, "https://test.com/bars/1234?limit=4", http.NoBody)),
 			wantIndex: 4,
 		},
@@ -278,7 +278,7 @@ func TestMock_findExpectedRequest(t *testing.T) {
 			m.On(AnyMethod, "https://test.com/foo", nil)
 			m.On(http.MethodGet, "https://test.com/bars/1234?limit=1", AnyBody)
 			m.On(http.MethodPut, "https://test.com/bars/1234", nil)
-			m.On(http.MethodGet, "https://test.com/bars/1234", nil).Matches(matcherLimitAtLeastTwo)
+			m.On(http.MethodGet, "https://test.com/bars/1234", nil).Matches(requestMatcherLimitAtLeastTwo)
 
 			// Test
 			gotIndex, gotExpectedRequest := m.findExpectedRequest(tt.request)
@@ -560,7 +560,7 @@ func TestMock_AssertExpectations_NoMatch(t *testing.T) {
 	successfulRequestedCall++
 }
 
-func makeEqualToMatcher(key string, value string) MatcherFn {
+func makeEqualToRequestMatcher(key string, value string) RequestMatcher {
 	fn := func(received *http.Request) (output string, differences int) {
 		v := received.URL.Query().Get(key)
 
@@ -580,12 +580,12 @@ func makeEqualToMatcher(key string, value string) MatcherFn {
 func TestMock_AssertExpectations(t *testing.T) {
 
 	tests := []struct {
-		name     string
-		method   string
-		path     string
-		body     []byte
-		matchers []MatcherFn
-		received *http.Request
+		name            string
+		method          string
+		path            string
+		body            []byte
+		requestMatchers []RequestMatcher
+		received        *http.Request
 	}{
 		{
 			name:   "basic",
@@ -640,11 +640,14 @@ func TestMock_AssertExpectations(t *testing.T) {
 			),
 		},
 		{
-			name:     "matchers",
-			method:   http.MethodGet,
-			path:     "test.com/foo",
-			body:     nil,
-			matchers: []MatcherFn{makeEqualToMatcher("page", "2"), makeEqualToMatcher("limit", "10")},
+			name:   "request-matchers",
+			method: http.MethodGet,
+			path:   "test.com/foo",
+			body:   nil,
+			requestMatchers: []RequestMatcher{
+				makeEqualToRequestMatcher("page", "2"),
+				makeEqualToRequestMatcher("limit", "10"),
+			},
 			received: mustNewRequest(
 				http.NewRequest(
 					http.MethodGet,
@@ -659,7 +662,7 @@ func TestMock_AssertExpectations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			m := new(Mock)
-			m.On(tt.method, tt.path, tt.body).Matches(tt.matchers...).RespondOK([]byte(`{"foo": "bar"}`))
+			m.On(tt.method, tt.path, tt.body).Matches(tt.requestMatchers...).RespondOK([]byte(`{"foo": "bar"}`))
 
 			mockT := new(testing.T)
 			assert.False(t, m.AssertExpectations(mockT))

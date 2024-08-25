@@ -32,7 +32,8 @@ var (
 	fmtEqual    = "=="
 )
 
-type MatcherFn func(received *http.Request) (output string, differences int)
+// RequestMatcher is used by the `Request.Matches` method to match a HTTP request.
+type RequestMatcher func(received *http.Request) (output string, differences int)
 
 // Request represents a HTTP request and is used for setting expectations,
 // as well as recording activity.
@@ -49,7 +50,8 @@ type Request struct {
 	// The body that was or will be requested.
 	body []byte
 
-	matchers []MatcherFn
+	// List of RequestMatcher functions to run against any received request.
+	matchers []RequestMatcher
 
 	// Holds the parts of the response that should be returned when setting
 	// this request is received.
@@ -141,10 +143,10 @@ func (r *Request) Times(i int) *Request {
 	return r
 }
 
-// Matches adds one or more MatcherFn's to the Request. MatcherFn's are called
+// Matches adds one or more RequestMatcher's to the Request. RequestMatcher's are called
 // in FIFO order after the HTTP method, URL, and body have been matched.
 //
-//	func queryAtLeast(key string, minValue int) MatcherFn {
+//	func queryAtLeast(key string, minValue int) RequestMatcher {
 //		fn := func(received *http.Request) (output string, differences int) {
 //			v := received.URL.Query().Get(key)
 //			if v == "" {
@@ -171,7 +173,7 @@ func (r *Request) Times(i int) *Request {
 //	}
 //
 //	Mock.On(http.MethodGet, "/some/path/1234", nil).Matches(queryAtLeast("page", 2))
-func (r *Request) Matches(matchers ...MatcherFn) *Request {
+func (r *Request) Matches(matchers ...RequestMatcher) *Request {
 	r.lock()
 	defer r.unlock()
 

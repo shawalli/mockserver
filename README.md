@@ -202,7 +202,7 @@ go get github.com/shawalli/httpmock
 
 ### Nil pointer dereference while reading `http.Request`
 
-If using `httpmock.Server` or `httptest.Server`, an `http.Request` with no body must use `http.NoBody` instead of
+If using `httpmock.Server` or `httptest.Server`, a `http.Request` with no body must use `http.NoBody` instead of
 `nil`. This is due to the fact that the test server is not actually sending and receiving a request, but rather mocking
 a request. Using `http.NoBody` indicates to the `net/http` package that the request has no body but is still a valid
 `io.Reader`.
