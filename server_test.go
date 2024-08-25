@@ -263,11 +263,11 @@ func TestSomething(t *testing.T) {
 		}
 		val := received.Header.Get("Authorization")
 		if !strings.HasPrefix(val, "Bearer ") {
-			output = fmt.Sprintf("FAIL:  header Authorization=%v != Bearer", val)
+			output = fmt.Sprintf("FAIL:  header Authorization: %q != Bearer", val)
 			differences = 1
 			return
 		}
-		output = fmt.Sprintf("PASS:  header Authorization=%v == Bearer", val)
+		output = fmt.Sprintf("PASS:  header Authorization: %q == Bearer", val)
 		return
 	}
 	ts.On(http.MethodPatch, "/foo/1234", []byte(`{"bar": "baz"}`)).
