@@ -22,26 +22,40 @@ func TestSomething(t *testing.T) {
 	ts.Recoverable()
 
 	// Configure request mocks
-	ts.Mock.On(
-		http.MethodPatch,
-		"/foo/1234?preview=true",
-		[]byte(`{"bar": "baz"}`)).
-	RespondOK([]byte(`Success!`)).
-	Once()
+	expectBearerToken := func(received *http.Request) (output string, differences int) {
+		if _, ok := received.Header["Authorization"]; !ok {
+			output = "FAIL:  missing header Authorization"
+			differences = 1
+			return
+		}
+		val := received.Header.Get("Authorization")
+		if !strings.HasPrefix(val, "Bearer ") {
+			output = fmt.Sprintf("FAIL:  header Authorization=%v != Bearer", val)
+			differences = 1
+			return
+		}
+		output = fmt.Sprintf("PASS:  header Authorization=%v == Bearer", val)
+		return
+	}
+	ts.On(http.MethodPatch, "/foo/1234", []byte(`{"bar": "baz"}`)).
+		Matches(expectBearerToken).
+		RespondOK([]byte(`Success!`)).
+		Once()
 
 	// Test application code
 	tc := ts.Client()
 	req, err := http.NewRequest(
 		http.MethodPatch,
-		fmt.Sprintf("%s/foo/1234?preview=true", ts.URL),
+		fmt.Sprintf("%s/foo/1234", ts.URL),
 		io.NopCloser(strings.NewReader(`{"bar": "baz"}`)),
 	)
+	req.Header.Add("Authorization", "Bearer jkel3450d")
 	resp, err := tc.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to make request! %v", err)
 	}
 
-	// Assert application code
+	// Assert application expectations
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
