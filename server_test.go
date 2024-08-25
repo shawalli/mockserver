@@ -282,10 +282,13 @@ func TestSomething(t *testing.T) {
 		fmt.Sprintf("%s/foo/1234", ts.URL),
 		io.NopCloser(strings.NewReader(`{"bar": "baz"}`)),
 	)
+	if err != nil {
+		t.Fatalf("Failed to create request! %v", err)
+	}
 	req.Header.Add("Authorization", "Bearer jkel3450d")
 	resp, err := tc.Do(req)
 	if err != nil {
-		t.Fatalf("Failed to make request! %v", err)
+		t.Fatalf("Failed to do request! %v", err)
 	}
 
 	// Assert application expectations
