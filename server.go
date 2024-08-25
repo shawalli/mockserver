@@ -40,7 +40,7 @@ func makeHandler(s *Server) http.HandlerFunc {
 
 			response := s.Mock.Requested(r)
 			if _, err := response.Write(w); err != nil {
-				s.Mock.fail(fmt.Sprintf("failed to write response for request:\n%s\nwith error: %v", response.parent.String(), err))
+				s.Mock.fail("failed to write response for request:\n%s\nwith error: %v", response.parent.String(), err)
 			}
 		},
 	)

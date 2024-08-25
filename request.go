@@ -502,10 +502,9 @@ func (r *Request) String() string {
 	}
 
 	if string(r.body) == string(AnyBody) {
-		e = fmtAnyBody
 		output = append(output, fmt.Sprintf("Body: (X) %s", fmtAnyBody))
 	} else {
-		e := trimBody(r.body)
+		e = trimBody(r.body)
 		output = append(output, fmt.Sprintf("Body: (%d) %s", len(r.body), e))
 	}
 

@@ -42,7 +42,7 @@ type Mock struct {
 func (m *Mock) On(method string, URL string, body []byte) *Request {
 	parsedURL, err := url.Parse(URL)
 	if err != nil {
-		m.fail(fmt.Sprintf("failed to parse url. Error: %v\n", err))
+		m.fail("failed to parse url. Error: %v\n", err)
 	}
 
 	expected := newRequest(
