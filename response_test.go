@@ -246,7 +246,7 @@ func TestResponse_Write(t *testing.T) {
 				body:       []byte("HELP"),
 				writer: func(w http.ResponseWriter, r *http.Request) (int, error) {
 					w.WriteHeader(http.StatusBadRequest)
-					w.Write([]byte(`{"error": "invalid foo"}`))
+					_, _ = w.Write([]byte(`{"error": "invalid foo"}`))
 					return 24, nil
 				},
 			},

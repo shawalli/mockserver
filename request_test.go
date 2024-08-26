@@ -234,7 +234,7 @@ func TestRequest_RespondUsing(t *testing.T) {
 
 	testWriter := func(w http.ResponseWriter, r *http.Request) (int, error) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(`And stay out!`))
+		_, _ = w.Write([]byte(`And stay out!`))
 		return 13, nil
 	}
 
