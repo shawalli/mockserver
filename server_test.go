@@ -41,9 +41,21 @@ func Test_NewTLSServer(t *testing.T) {
 	}
 }
 
-func TestServer_handler_NoMatch(t *testing.T) {
+func TestServer_NotRecoverable(t *testing.T) {
 	// Setup
-	s := NewServer().Recoverable()
+	s := NewServer()
+	defer s.Close()
+
+	// Test
+	s.NotRecoverable()
+
+	// Assert
+	assert.True(t, s.ignorePanic)
+}
+
+func TestServer_defaultHandler_NoMatch(t *testing.T) {
+	// Setup
+	s := NewServer()
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody))
 
@@ -60,9 +72,9 @@ func TestServer_handler_NoMatch(t *testing.T) {
 	s.Mock.AssertNotRequested(t, http.MethodDelete, fmt.Sprintf("%s/foo/1234", s.URL), nil)
 }
 
-func TestServer_handler_AssertRequested(t *testing.T) {
+func TestServer_defaultHandler_AssertRequested(t *testing.T) {
 	// Setup
-	s := NewServer().Recoverable()
+	s := NewServer()
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody))
 
@@ -86,9 +98,9 @@ func TestServer_handler_AssertRequested(t *testing.T) {
 	s.Mock.AssertRequested(t, http.MethodGet, "/foo/1234", nil)
 }
 
-func TestServer_handler_AssertNotRequested(t *testing.T) {
+func TestServer_defaultHandler_AssertNotRequested(t *testing.T) {
 	// Setup
-	s := NewServer().Recoverable()
+	s := NewServer()
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).RespondOK([]byte(testBody))
 
@@ -96,9 +108,9 @@ func TestServer_handler_AssertNotRequested(t *testing.T) {
 	s.Mock.AssertNotRequested(t, http.MethodDelete, fmt.Sprintf("%s/foo/1234", s.URL), nil)
 }
 
-func TestServer_handler_AssertExpectations(t *testing.T) {
+func TestServer_defaultHandler_AssertExpectations(t *testing.T) {
 	// Setup
-	s := NewServer().Recoverable()
+	s := NewServer()
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).Respond(http.StatusNotFound, nil).Twice()
 	s.On(http.MethodPut, "/foo/1234", []byte(testBody)).RespondNoContent()
@@ -163,9 +175,9 @@ func TestServer_handler_AssertExpectations(t *testing.T) {
 	s.Mock.AssertExpectations(t)
 }
 
-func TestServer_handler_AssertNumberOfRequests(t *testing.T) {
+func TestServer_defaultHandler_AssertNumberOfRequests(t *testing.T) {
 	// Setup
-	s := NewServer().Recoverable()
+	s := NewServer()
 	defer s.Close()
 	s.On(http.MethodGet, "/foo/1234", nil).Respond(http.StatusNotFound, nil).Twice()
 	s.On(http.MethodPut, "/foo/1234", []byte(testBody)).RespondNoContent()
@@ -246,13 +258,10 @@ func TestServer_handler_AssertNumberOfRequests(t *testing.T) {
 //
 // Let's keep it as a real test to ensure it actually works!
 func TestSomething(t *testing.T) {
-	// Setup default test server and handler to log requests and return expected responses
-	// You may also create your own test server, handler, and mock to manage this
+	// Setup default test server and handler to log requests and return expected responses.
+	// You may also create your own test server, handler, and mock to manage this.
 	ts := NewServer()
 	defer ts.Close()
-	// Set as recoverable to log panics rather than propagate out from the server
-	// goroutine to the parent process
-	ts.Recoverable()
 
 	// Configure request mocks
 	expectBearerToken := func(received *http.Request) (output string, differences int) {

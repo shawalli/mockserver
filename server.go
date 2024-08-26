@@ -15,9 +15,9 @@ type Server struct {
 	Mock *Mock
 
 	// Whether or not panics should be caught in the server goroutine or
-	// allowed to propagate to the parent process. If true, the panic will be
+	// allowed to propagate to the parent process. If false, the panic will be
 	// printed and a 404 will be returned to the client.
-	recoverable bool
+	ignorePanic bool
 }
 
 // makeHandler creates a standard [http.HandlerFunc] that may be used by a
@@ -62,21 +62,20 @@ func NewTLSServer() *Server {
 	return s
 }
 
-// Recoverable sets a [Server] as recoverable, so that panics are caught and
-// printed to stdout, with a final 404 returned to the client.
+// NotRecoverable sets a [Server] as not recoverable, so that panics are allowed
+// to propagate to the main process. With the default handler, panics are caught
+// and printed to stdout, with a final 404 returned to the client.
 //
 // 404 was chosen rather than 500 due to panics almost always occurring when a
-// matching [Request] cannot be found. However, custom handlers can choose to
-// implement their recovery mechanism however they would like, using the
-// [Server.IsRecoverable] method to access this value.
-func (s *Server) Recoverable() *Server {
-	s.recoverable = true
+// matching [Request] cannot be found.
+func (s *Server) NotRecoverable() *Server {
+	s.ignorePanic = true
 	return s
 }
 
 // IsRecoverable returns whether or not the [Server] is considered recoverable.
 func (s *Server) IsRecoverable() bool {
-	return s.recoverable
+	return !s.ignorePanic
 }
 
 // On is a convenience method to invoke the [Mock.On] method.
