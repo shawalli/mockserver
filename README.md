@@ -219,6 +219,17 @@ respWriter := func(w http.ResponseWriter, r *http.Request) (int, error) {
 Mock.On(http.MethodGet, "/some/path/1234?page=3&limit=20", nil).RespondUsing(respWriter)
 ```
 
+### `httpmock.Response`
+
+#### Header
+
+Use `httpmock.Response.Header()` to set headers on the response. Multiple values may be passed for the header's value.
+However, multiple invocations against the same header will overwrite previous values with the most recent values.
+
+```go
+Mock.On(http.MethodGet, "/some/path", nil).RespondOK([]byte(`{"id": "1234"}`)).Header("next", "abcd")
+```
+
 ### `httpmock.Server`
 
 #### Recoverable, IsRecoverable
