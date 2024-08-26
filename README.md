@@ -13,13 +13,10 @@ import (
 )
 
 func TestSomething(t *testing.T) {
-	// Setup default test server and handler to log requests and return expected responses
-	// You may also create your own test server, handler, and mock to manage this
+	// Setup default test server and handler to log requests and return expected responses.
+	// You may also create your own test server, handler, and mock to manage this.
 	ts := httpmock.NewServer()
 	defer ts.Close()
-	// Set as recoverable to log panics rather than propagate out from the server
-	// goroutine to the parent process
-	ts.Recoverable()
 
 	// Configure request mocks
 	expectBearerToken := func(received *http.Request) (output string, differences int) {
@@ -232,13 +229,12 @@ Mock.On(http.MethodGet, "/some/path", nil).RespondOK([]byte(`{"id": "1234"}`)).H
 
 ### `httpmock.Server`
 
-#### Recoverable, IsRecoverable
+#### NotRecoverable, IsRecoverable
 
 `httpmock.Server` is a glorified version of `httptest.Server` with a default handler. With both server types, the
-server runs as a goroutine. One can use `Recoverable()` to indicate that an unmatched request should not cause the
-server to panic outside of the server goroutine and into the main process.
-
-If writing a custom handler, the handler should react to a panic based on the server's `IsRecoverable()` response.
+server runs as a goroutine. The default behavior is to log the panic details and recover from it. However, an
+implementation can set `NotRecoverable()` to indicate to the handler that an unmatched request should cause the server
+to panic outside of the server goroutine and into the main process.
 
 ## Installation
 
