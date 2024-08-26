@@ -7,8 +7,8 @@ import (
 
 var ErrWriteReturnBody = errors.New("error writing return body")
 
-// ResponseWriter writes a HTTP response and returns the number of bytes written
-// and whether or not the operation encountered an error.
+// ResponseWriter writes a [http.Response] and returns the number of bytes
+// written and whether or not the operation encountered an error.
 //
 // [*http.Request] is provided as an argument so that the response writer can
 // use information from the request when crafting the response. If the
@@ -42,12 +42,12 @@ func newResponse(parent *Request, statusCode int, body []byte) *Response {
 	}
 }
 
-// lock is a convenience method to lock the grandparent mock's mutex.
+// lock is a convenience method to lock the grandparent [Mock]'s mutex.
 func (r *Response) lock() {
 	r.parent.parent.mutex.Lock()
 }
 
-// unlock is a convenience method to unlock the grandparent mock's mutex.
+// unlock is a convenience method to unlock the grandparent [Mock]'s mutex.
 func (r *Response) unlock() {
 	r.parent.parent.mutex.Unlock()
 }
@@ -63,7 +63,7 @@ func (r *Response) Header(key string, value string, values ...string) *Response 
 	return r
 }
 
-// Once is a convenience method which indicates that the grandparent mock
+// Once is a convenience method which indicates that the grandparent [Mock]
 // should only expect the parent request once.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").RespondNoContent().Once()
@@ -71,7 +71,7 @@ func (r *Response) Once() *Request {
 	return r.parent.Once()
 }
 
-// Twice is a convenience method which indicates that the grandparent mock
+// Twice is a convenience method which indicates that the grandparent [Mock]
 // should only expect the parent request twice.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").RespondNoContent().Twice()
@@ -79,7 +79,7 @@ func (r *Response) Twice() *Request {
 	return r.parent.Twice()
 }
 
-// Times is a convenience method which indicates that the grandparent mock
+// Times is a convenience method which indicates that the grandparent [Mock]
 // should only expect the parent request the indicated number of times.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").RespondNoContent().Times(5)
@@ -87,7 +87,7 @@ func (r *Response) Times(i int) *Request {
 	return r.parent.Times(i)
 }
 
-// On chains a new expectation description onto the grandparent mock. This
+// On chains a new expectation description onto the grandparent [Mock]. This
 // allows syntax like:
 //
 //	Mock.

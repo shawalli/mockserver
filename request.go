@@ -32,10 +32,11 @@ var (
 	fmtEqual    = "=="
 )
 
-// RequestMatcher is used by the `Request.Matches` method to match a HTTP request.
+// RequestMatcher is used by the [Request.Matches] method to match a
+// [http.Request].
 type RequestMatcher func(received *http.Request) (output string, differences int)
 
-// Request represents a HTTP request and is used for setting expectations,
+// Request represents a [http.Request] and is used for setting expectations,
 // as well as recording activity.
 type Request struct {
 	parent *Mock
@@ -74,12 +75,12 @@ func newRequest(parent *Mock, method string, URL *url.URL, body []byte) *Request
 	}
 }
 
-// lock is a convenience method to lock the parent Mock's mutex.
+// lock is a convenience method to lock the parent [Mock]'s mutex.
 func (r *Request) lock() {
 	r.parent.mutex.Lock()
 }
 
-// unlock is a convenience method to unlock the parent Mock's mutex.
+// unlock is a convenience method to unlock the parent [Mock]'s mutex.
 func (r *Request) unlock() {
 	r.parent.mutex.Unlock()
 }
@@ -105,7 +106,7 @@ func (r *Request) Respond(statusCode int, body []byte) *Response {
 // RespondOK is a convenience method that sets the status code as 200 and
 // the provided body.
 //
-//	Mock.On(http.GetMethod, "/some/path").RespondOK([]byte(`{"foo", "bar"}`)])
+//	Mock.On(http.GetMethod, "/some/path").RespondOK([]byte(`{"foo", "bar"}`))
 func (r *Request) RespondOK(body []byte) *Response {
 	return r.Respond(http.StatusOK, body)
 }
@@ -117,10 +118,10 @@ func (r *Request) RespondNoContent() *Response {
 	return r.Respond(http.StatusNoContent, nil)
 }
 
-// RespondUsing overrides the [Respond] functionality by allowing a custom
-// writer to be invoked instead of the typical writing functionality.
+// RespondUsing overrides the [Request.Respond] functionality by allowing a
+// custom writer to be invoked instead of the typical writing functionality.
 //
-// Note: The `writer“ is responsible for the entire response, including
+// Note: The `writer` is responsible for the entire response, including
 // headers, status code, and body.
 func (r *Request) RespondUsing(writer ResponseWriter) *Response {
 	resp := &Response{
@@ -136,21 +137,21 @@ func (r *Request) RespondUsing(writer ResponseWriter) *Response {
 	return resp
 }
 
-// Once indicates that the mock should only return the response once.
+// Once indicates that the [Mock] should only return the response once.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").Once()
 func (r *Request) Once() *Request {
 	return r.Times(1)
 }
 
-// Twice indicates that the mock should only return the response twice.
+// Twice indicates that the [Mock] should only return the response twice.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").Twice()
 func (r *Request) Twice() *Request {
 	return r.Times(2)
 }
 
-// Times indicates that the mock should only return the indicated number
+// Times indicates that the [Mock] should only return the indicated number
 // of times.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234").Times(5)
@@ -162,8 +163,9 @@ func (r *Request) Times(i int) *Request {
 	return r
 }
 
-// Matches adds one or more RequestMatcher's to the Request. RequestMatcher's are called
-// in FIFO order after the HTTP method, URL, and body have been matched.
+// Matches adds one or more [RequestMatcher]'s to the Request.
+// [RequestMatcher]'s are called in FIFO order after the HTTP method, URL, and
+// body have been matched.
 //
 //	func queryAtLeast(key string, minValue int) RequestMatcher {
 //		fn := func(received *http.Request) (output string, differences int) {
@@ -200,7 +202,8 @@ func (r *Request) Matches(matchers ...RequestMatcher) *Request {
 	return r
 }
 
-// SafeReadBody reads the body of a HTTP request and resets the request's body so that it may be read again afterward.
+// SafeReadBody reads the body of a [http.Request] and resets the
+// [http.Request]'s body so that it may be read again afterward.
 func SafeReadBody(received *http.Request) ([]byte, error) {
 	// Read request body and reset it for the next comparison
 	body, err := io.ReadAll(received.Body)
@@ -222,9 +225,9 @@ func diffMissing(v string) (string, bool) {
 	return v, true
 }
 
-// diffMethod detects differences between a Request's HTTP method and a HTTP
-// request's HTTP method. It responds with a formatted string of the difference
-// and the calculated number of differences.
+// diffMethod detects differences between a [Request]'s HTTP method and a
+// [http.Request]'s HTTP method. It responds with a formatted string of the
+// difference and the calculated number of differences.
 func (r *Request) diffMethod(received *http.Request) (string, int) {
 	var output string
 	var differences int
@@ -251,14 +254,14 @@ func (r *Request) diffMethod(received *http.Request) (string, int) {
 	return output, differences
 }
 
-// diffQuery detects differences between a Request's query parameters and a
-// HTTP request's query parameters. It responds with a formatted string of the
+// diffQuery detects differences between a [Request]'s query parameters and a
+// [http.Request]'s query parameters. It responds with a formatted string of the
 // differences and the calculated number of differences.
 //
 // Query Logic:
-//   - If Request query is empty, don't compare query parameters at all
-//   - Otherwise, only compare query parameters found in Request; ignore query
-//     parameters in HTTP request that are not enumerated in the Request.
+//   - If [Request] query is empty, don't compare query parameters at all.
+//   - Otherwise, only compare query parameters found in [Request]; ignore query
+//     parameters in [http.Request] that are not enumerated in the [Request].
 func (r *Request) diffQuery(received *http.Request) (string, int) {
 	var output string
 	var differences int
@@ -303,8 +306,8 @@ func (r *Request) diffQuery(received *http.Request) (string, int) {
 	return output, differences
 }
 
-// diffURL detects differences between a Request's URL and an
-// HTTP request's URL. It responds with a formatted string of the
+// diffURL detects differences between a [Request]'s URL and a
+// [http.Request]'s URL. It responds with a formatted string of the
 // differences and the calculated number of differences.
 //
 // Ignored URL Fields:
@@ -403,9 +406,9 @@ func trimBody(body []byte) string {
 	return o
 }
 
-// diffBody detects differences between a Request's body and a HTTP request's
-// body. It responds with a formatted string of the differences and the
-// calculated number of differences.
+// diffBody detects differences between a [Request]'s body and a
+// [http.Request]'s body. It responds with a formatted string of
+// the differences and the calculated number of differences.
 func (r *Request) diffBody(received *http.Request) (string, int) {
 	var output string
 	var differences int
@@ -441,9 +444,9 @@ func (r *Request) diffBody(received *http.Request) (string, int) {
 	return output, differences
 }
 
-// diff detects differences between a Request and a HTTP request. It responds
-// with a formatted string of the differences and the calculated number of
-// differences.
+// diff detects differences between a [Request] and a [http.Request]. It
+// responds with a formatted string of the differences and the calculated
+// number of differences.
 func (r *Request) diff(received *http.Request) (string, int) {
 	output := "\n"
 	var differences int
@@ -472,7 +475,7 @@ func (r *Request) diff(received *http.Request) (string, int) {
 	return output, differences
 }
 
-// String computes a formatted string representing a Request.
+// String computes a formatted string representing a [Request].
 func (r *Request) String() string {
 	var output []string
 

@@ -14,12 +14,12 @@ import (
 )
 
 // tHelper is a minimal interface that expects a type to satisfy the
-// testing.TB.Helper method.
+// [testing.TB] Helper method.
 type tHelper interface {
 	Helper()
 }
 
-// Mock is the workhorse used to track activity of a server's request.
+// Mock is the workhorse used to track activity of a server's requesst.
 // For an example of its usage, refer to the README.
 type Mock struct {
 	// Represents the requests that are expected to be received.
@@ -35,7 +35,7 @@ type Mock struct {
 	mutex sync.Mutex
 }
 
-// On starts a description of an expectation of the specified Request being
+// On starts a description of an expectation of the specified [Request] being
 // received.
 //
 //	Mock.On(http.MethodDelete, "/some/path/1234")
@@ -59,7 +59,7 @@ func (m *Mock) On(method string, URL string, body []byte) *Request {
 	return expected
 }
 
-// Test sets the test struct variable of the mock object.
+// Test sets the test struct variable of the [Mock] object.
 func (m *Mock) Test(t mock.TestingT) *Mock {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -82,18 +82,18 @@ func (m *Mock) fail(format string, args ...interface{}) {
 }
 
 // expectedRequests provides a safe mechanism for viewing and modifying the list
-// of expected Requests.
+// of expected [Request]'s.
 func (m *Mock) expectedRequests() []*Request {
 	return append([]*Request{}, m.ExpectedRequests...)
 }
 
 // expectedRequests provides a safe mechanism for viewing and modifying the list
-// of received Requests.
+// of received [Request]'s.
 func (m *Mock) requests() []Request {
 	return append([]Request{}, m.Requests...)
 }
 
-// findExpectedRequest finds the first Request that exactly matches a received
+// findExpectedRequest finds the first [Request] that exactly matches a received
 // request and does not have its repeatability disabled.
 func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
 	var expected *Request
@@ -111,12 +111,12 @@ func (m *Mock) findExpectedRequest(actual *http.Request) (int, *Request) {
 	return -1, expected
 }
 
-// findClosestRequest finds the first request that most closely matches a
-// received request.
+// findClosestRequest finds the first [Request] that most closely matches a
+// received [http.Request].
 //
 // This method should only be used if there is no exact match of a received
-// request to the list of expected Requests. If a closest match is found, it is
-// returned, along with a formatted string of the differences.
+// request to the list of expected [Request]'s. If a closest match is found,
+// it is returned, along with a formatted string of the differences.
 func (m *Mock) findClosestRequest(received *http.Request) (*Request, string) {
 	var bestMatch matchCandidate
 
@@ -135,9 +135,9 @@ func (m *Mock) findClosestRequest(received *http.Request) (*Request, string) {
 	return bestMatch.request, bestMatch.mismatch
 }
 
-// Requested tells the mock that a request has been received and gets a response
-// to return. Panics if the request is unexpected (i.e. not preceded by
-// appropriate .On .Respond() calls)
+// Requested tells the mock that a [http.Request] has been received and gets a
+// response to return. Panics if the request is unexpected (i.e. not preceded
+// by appropriate [Mock.On] calls).
 func (m *Mock) Requested(received *http.Request) *Response {
 	m.mutex.Lock()
 
@@ -203,20 +203,20 @@ func (m *Mock) Requested(received *http.Request) *Response {
 	return expected.response
 }
 
-// matchCandidate holds details about possible Request matches for a received
-// request.
+// matchCandidate holds details about possible [Request] matches for a received
+// [http.Request].
 type matchCandidate struct {
-	// Matched Request
+	// Matched [*Request]
 	request *Request
 
 	// Formatted string showing differences
 	mismatch string
 
-	// Number of differences between match candidate and received request.
+	// Number of differences between matchCandidate and received http.Request.
 	diffCount int
 }
 
-// isBetterMatchThan compares two matchCandidates to determine whether the
+// isBetterMatchThan compares two matchCandidate's to determine whether the
 // referenced candidate is better than the other candidate.
 func (mc matchCandidate) isBetterMatchThan(other matchCandidate) bool {
 	if mc.request == nil {
@@ -238,8 +238,9 @@ func (mc matchCandidate) isBetterMatchThan(other matchCandidate) bool {
 	return false
 }
 
-// AssertExpectations assert that everything specified with On and Respond was
-// in fact requested as expected. Requests may have occurred in any order.
+// AssertExpectations assert that everything specified with [Mock.On] and
+// [Request.Respond] was in fact requested as expected. [Request]'s may have
+// occurred in any order.
 func (m *Mock) AssertExpectations(t mock.TestingT) bool {
 	if th, ok := t.(tHelper); ok {
 		th.Helper()
@@ -362,7 +363,7 @@ func (m *Mock) AssertNotRequested(t mock.TestingT, method string, path string, b
 	return true
 }
 
-// checkExpectation checks whether an expected Request was received, and
+// checkExpectation checks whether an expected [Request] was received,
 // whether it received the expected number of times.
 func (m *Mock) checkExpectation(expected *Request) (bool, string) {
 	if (!m.checkWasRequested(expected.method, expected.url, expected.body) && expected.totalRequests == 0) || (expected.repeatability > 0) {
@@ -371,7 +372,7 @@ func (m *Mock) checkExpectation(expected *Request) (bool, string) {
 	return true, fmt.Sprintf("PASS:\t%s %s\n\t(%d) %s", expected.method, expected.url, len(expected.body), trimBody(expected.body))
 }
 
-// checkWasRequested checks whether a set of request parameters was received.
+// checkWasRequested checks whether a set of [Request] parameters was received.
 func (m *Mock) checkWasRequested(method string, URL *url.URL, body []byte) bool {
 	tempReceived := &http.Request{
 		Method: method,
