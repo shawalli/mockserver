@@ -20,6 +20,16 @@ type Server struct {
 	ignorePanic bool
 }
 
+// ServerConfig contains settings for configuring a [Server]. It is used with
+// [NewServerWithConfig]. For default behavior, use [NewServer].
+type ServerConfig struct {
+	// Create TLS-configured server
+	TLS bool
+
+	// Custom server handler
+	Handler http.HandlerFunc
+}
+
 // makeHandler creates a standard [http.HandlerFunc] that may be used by a
 // regular or TLS [Server] to log requests and write configured responses.
 func makeHandler(s *Server) http.HandlerFunc {
@@ -54,10 +64,19 @@ func NewServer() *Server {
 	return s
 }
 
-// NewServer creates a new [Server], configured for TLS, and associated [Mock].
-func NewTLSServer() *Server {
+func NewServerWithConfig(cfg ServerConfig) *Server {
 	s := &Server{Mock: new(Mock)}
-	s.Server = httptest.NewTLSServer(http.HandlerFunc(makeHandler(s)))
+
+	handler := cfg.Handler
+	if handler == nil {
+		handler = http.HandlerFunc(makeHandler(s))
+	}
+
+	if cfg.TLS {
+		s.Server = httptest.NewTLSServer(handler)
+	} else {
+		s.Server = httptest.NewServer(handler)
+	}
 
 	return s
 }
@@ -67,7 +86,9 @@ func NewTLSServer() *Server {
 // and printed to stdout, with a final 404 returned to the client.
 //
 // 404 was chosen rather than 500 due to panics almost always occurring when a
-// matching [Request] cannot be found.
+// matching [Request] cannot be found. However, custom handlers can choose to
+// implement their recovery mechanism however they would like, using the
+// [Server.IsRecoverable] method to access this value.
 func (s *Server) NotRecoverable() *Server {
 	s.ignorePanic = true
 	return s

@@ -17,28 +17,60 @@ func Test_NewServer(t *testing.T) {
 
 	// Assertions
 	assert.NotNil(t, s.Mock)
-	assert.NotNil(t, s.Server)
-	if s.Server != nil {
-		// Equivalent to s != TLSServer
-		assert.Nil(t, s.Server.TLS)
-		// Equivalent to the server having been Start()'ed already
-		assert.NotEmpty(t, s.Server.URL)
+	if s.Server == nil {
+		t.Fatalf("unexpected nil Server")
 	}
+	// Equivalent to s != TLSServer
+	assert.Nil(t, s.Server.TLS)
+	// Equivalent to the server having been Start()'ed already
+	assert.NotEmpty(t, s.Server.URL)
 }
 
-func Test_NewTLSServer(t *testing.T) {
+func Test_NewServerWithConfig_TLS(t *testing.T) {
+	// Setup
+	cfg := ServerConfig{TLS: true}
+
 	// Test
-	s := NewTLSServer()
+	s := NewServerWithConfig(cfg)
 
 	// Assertions
 	assert.NotNil(t, s.Mock)
-	assert.NotNil(t, s.Server)
-	if s.Server != nil {
-		// Equivalent to s == TLSServer
-		assert.NotNil(t, s.Server.TLS)
-		// Equivalent to the server having been Start()'ed already
-		assert.NotEmpty(t, s.Server.URL)
+	if s.Server == nil {
+		t.Fatalf("unexpected nil Server")
 	}
+	// Equivalent to s == TLSServer
+	assert.NotNil(t, s.Server.TLS)
+	// Equivalent to the server having been Start()'ed already
+	assert.NotEmpty(t, s.Server.URL)
+}
+
+func Test_NewServerWithConfig_CustomHandler(t *testing.T) {
+	// Setup
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}
+	cfg := ServerConfig{Handler: handler}
+
+	// Test
+	s := NewServerWithConfig(cfg)
+	s.On(AnyMethod, "/", nil).RespondOK([]byte(``))
+
+	// Assertions
+	assert.NotNil(t, s.Mock)
+	if s.Server == nil {
+		t.Fatalf("unexpected nil Server")
+	}
+	// Equivalent to s != TLSServer
+	assert.Nil(t, s.Server.TLS)
+	// Equivalent to the server having been Start()'ed already
+	assert.NotEmpty(t, s.Server.URL)
+
+	resp, err := s.Client().Get(s.URL)
+	if err != nil {
+		t.Fatalf("unexpecrted failure when reading response: %v", err)
+	}
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestServer_NotRecoverable(t *testing.T) {
