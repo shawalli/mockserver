@@ -233,8 +233,10 @@ Mock.On(http.MethodGet, "/some/path", nil).RespondOK([]byte(`{"id": "1234"}`)).H
 
 `httpmock.Server` is a glorified version of `httptest.Server` with a default handler. With both server types, the
 server runs as a goroutine. The default behavior is to log the panic details and recover from it. However, an
-implementation can set `NotRecoverable()` to indicate to the handler that an unmatched request should cause the server
-to panic outside of the server goroutine and into the main process.
+implementation can set `NotRecoverable()` to indicate to the default or custom handler that an unmatched request
+should cause the server to panic outside of the server goroutine and into the main process.
+
+If writing a custom handler, the handler should react to a panic based on the server's `IsRecoverable()` response.
 
 ## Installation
 
