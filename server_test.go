@@ -26,9 +26,12 @@ func Test_NewServer(t *testing.T) {
 	}
 }
 
-func Test_NewTLSServer(t *testing.T) {
+func Test_NewServerWithConfig_TLS(t *testing.T) {
+	// Setup
+	cfg := ServerConfig{TLS: true}
+
 	// Test
-	s := NewTLSServer()
+	s := NewServerWithConfig(cfg)
 
 	// Assertions
 	assert.NotNil(t, s.Mock)
