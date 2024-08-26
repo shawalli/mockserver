@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -225,6 +226,41 @@ func TestRequest_RespondNoContent(t *testing.T) {
 	}
 	assert.Equal(t, want, got)
 	assert.Equal(t, got, r.response)
+}
+
+func TestRequest_RespondUsing(t *testing.T) {
+	// Setup
+	r := &Request{parent: new(Mock)}
+
+	testWriter := func(w http.ResponseWriter, r *http.Request) (int, error) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`And stay out!`))
+		return 13, nil
+	}
+
+	// Test
+	got := r.RespondUsing(testWriter)
+
+	// Assertions
+	assert.Equal(t, got, r.response)
+	assert.Zero(t, got.statusCode)
+	assert.Empty(t, got.header)
+	assert.Empty(t, got.body)
+	assert.NotNil(t, got.writer)
+
+	// Instead of comparing function pointers, run the function and assert its
+	// output.
+	recorder := httptest.NewRecorder()
+	gotN, gotErr := got.writer(recorder, &http.Request{})
+	assert.Equal(t, 13, gotN)
+	assert.Nil(t, gotErr)
+	gotResult := recorder.Result()
+	gotResultBody, err := io.ReadAll(gotResult.Body)
+	if err != nil {
+		t.Fatalf("unexpected error reading response: %v", err)
+	}
+	defer gotResult.Body.Close()
+	assert.Equal(t, "And stay out!", string(gotResultBody))
 }
 
 func TestRequest_Once(t *testing.T) {

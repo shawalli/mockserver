@@ -9,7 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// badResponseWriter implements the http.ResponseWriter interface, but always fails to write.
+// badResponseWriter implements the [http.ResponseWriter] interface, but always
+// fails to write.
 type badResponseWriter struct{}
 
 func (brw *badResponseWriter) Header() http.Header               { return http.Header{} }
@@ -163,7 +164,7 @@ func TestResponse_Write_FailWriteBody(t *testing.T) {
 	}
 
 	// Test
-	gotN, gotErr := response.Write(&badResponseWriter{})
+	gotN, gotErr := response.Write(&badResponseWriter{}, nil)
 
 	// Assertions
 	assert.Equal(t, -1, gotN)
@@ -235,6 +236,24 @@ func TestResponse_Write(t *testing.T) {
 			wantHeaders:    http.Header{},
 			wantBody:       []byte(`{"error": "invalid foo"}`),
 		},
+		{
+			name: "response-writer",
+			response: &Response{
+				// Set statusCode, header, and body to verify they are not used
+				// during response writing.
+				statusCode: http.StatusInternalServerError,
+				header:     http.Header{"X-Request-Id": []string{"5678"}},
+				body:       []byte("HELP"),
+				writer: func(w http.ResponseWriter, r *http.Request) (int, error) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"error": "invalid foo"}`))
+					return 24, nil
+				},
+			},
+			wantStatusCode: http.StatusBadRequest,
+			wantHeaders:    http.Header{},
+			wantBody:       []byte(`{"error": "invalid foo"}`),
+		},
 	}
 
 	for _, tt := range tests {
@@ -245,7 +264,7 @@ func TestResponse_Write(t *testing.T) {
 			recorder := httptest.NewRecorder()
 
 			// Test
-			gotN, gotErr := tt.response.Write(recorder)
+			gotN, gotErr := tt.response.Write(recorder, nil)
 
 			response := recorder.Result()
 			gotBody, err := io.ReadAll(response.Body)
