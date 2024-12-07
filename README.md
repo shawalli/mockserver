@@ -258,10 +258,10 @@ a request. Using `http.NoBody` indicates to the `net/http` package that the requ
 ## Todo
 
 - [x] Extend `httptest.Server` to provide a single implementation
-- [ ] Request URL matcher
 - [x] Request matcher functions
-- [x] Request header matching (implemented with matcher functions feature)
-- [ ] Response custom function
+- ~~[ ] Request URL matcher~~ _(can be implemented with matcher functions feature)_
+- ~~[ ] Request header matching~~ _(can be implemented with matcher functions feature)_
+- [x] Response custom function
 
 ## License
 
